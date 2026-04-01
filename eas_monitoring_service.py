@@ -1474,36 +1474,41 @@ def main():
                     logger.error("Audio controller not initialized")
                     return jsonify({'error': 'Audio controller not initialized'}), 503
 
-                # Resolve which source to stream from.
-                # Primary path: use the source that the EAS monitor is actively watching.
-                # Fallback path: find any RUNNING source directly from the audio controller.
-                # The fallback handles two common scenarios:
-                #   1. EAS monitor started but hasn't run its first discovery cycle yet
-                #      (discovery runs every 5 seconds; sources may already be running).
-                #   2. EAS monitor is initializing while sources stream live audio.
-                source_name = None
+                # Collect every running source that exposes an EAS broadcast queue.
+                # Primary: use every source the EAS monitor is actively watching.
+                # Fallback: scan all RUNNING sources when the monitor hasn't discovered any yet
+                #   (discovery runs every 5 seconds; sources may already be running at connect time).
+                from app_core.audio.ingest import AudioSourceStatus
+                source_broadcast_queues = {}  # {source_name: BroadcastQueue}
+
                 if _eas_monitor:
                     status = _eas_monitor.get_status()
                     if status and status.get('monitors'):
-                        monitor_info = next(iter(status['monitors'].values()), None)
-                        if monitor_info and 'source_name' in monitor_info:
-                            source_name = monitor_info['source_name']
+                        for s_name in status['monitors']:
+                            _adapter = _audio_controller.get_source(s_name)
+                            if (
+                                _adapter
+                                and _adapter.status == AudioSourceStatus.RUNNING
+                                and hasattr(_adapter, 'get_eas_broadcast_queue')
+                                and callable(getattr(_adapter, 'get_eas_broadcast_queue', None))
+                            ):
+                                source_broadcast_queues[s_name] = _adapter.get_eas_broadcast_queue()
 
-                if not source_name:
-                    from app_core.audio.ingest import AudioSourceStatus
+                if not source_broadcast_queues:
                     for _name, _adapter in _audio_controller.get_all_sources().items():
                         if (
                             _adapter.status == AudioSourceStatus.RUNNING
                             and hasattr(_adapter, 'get_eas_broadcast_queue')
+                            and callable(getattr(_adapter, 'get_eas_broadcast_queue', None))
                         ):
-                            source_name = _name
-                            logger.info(
-                                f"EAS decoder stream: EAS monitor has no active watchers yet; "
-                                f"falling back to first running source '{source_name}'"
-                            )
-                            break
+                            source_broadcast_queues[_name] = _adapter.get_eas_broadcast_queue()
+                    if source_broadcast_queues:
+                        logger.info(
+                            f"EAS decoder stream: EAS monitor has no active watchers yet; "
+                            f"falling back to running sources {list(source_broadcast_queues)}"
+                        )
 
-                if not source_name:
+                if not source_broadcast_queues:
                     logger.error("No running audio sources available for EAS decoder stream")
                     return jsonify({
                         'error': (
@@ -1512,43 +1517,35 @@ def main():
                         )
                     }), 503
 
-                adapter = _audio_controller.get_source(source_name)
-                if not adapter:
-                    logger.error(f"Audio source '{source_name}' not found")
-                    return jsonify({'error': f"Audio source '{source_name}' not found"}), 503
-
-                # Use the 16kHz EAS broadcast queue - this is the actual audio the decoder processes
-                if not (hasattr(adapter, 'get_eas_broadcast_queue') and callable(getattr(adapter, 'get_eas_broadcast_queue', None))):
-                    logger.error(f"Audio source '{source_name}' does not support EAS broadcast queue")
-                    return jsonify({'error': f"Audio source '{source_name}' does not support EAS broadcast queue"}), 503
-
-                broadcast_queue = adapter.get_eas_broadcast_queue()
-
                 def generate_eas_decoder_mp3():
-                    """Stream the EAS decoder's 16kHz mono audio as MP3.
+                    """Stream all active EAS decoder sources mixed together as MP3.
 
-                    Uses an ffmpeg subprocess to encode raw 16-bit PCM → MP3 so
-                    that the stream works on every browser, including Safari on iOS
-                    (which rejects streaming WAV with unknown/infinite file sizes).
+                    Subscribes to every running source's 16kHz EAS broadcast queue and
+                    mixes them into a single stream so the listener hears all sources at
+                    once.  Uses ffmpeg to encode the mixed PCM to MP3 for broad browser
+                    compatibility (including Safari on iOS).
 
-                    The generator seeds ffmpeg with ~200 ms of silence before
-                    pulling from the broadcast queue.  This ensures the first MP3
-                    frame is available before the browser's play() call times out,
-                    avoiding the startup-latency issue that affected an earlier
-                    ffmpeg implementation.
+                    The generator seeds ffmpeg with ~200 ms of silence before pulling
+                    from the queues.  This ensures the first MP3 frame is available
+                    before the browser's play() call times out.
                     """
                     import subprocess as _subprocess
 
                     stream_sample_rate = 16000  # EAS decoder always uses 16kHz
                     stream_channels = 1
-                    silence_duration = 0.05
+                    silence_duration = 0.1  # 100 ms — matches chunk cadence
                     silence_samples = int(stream_sample_rate * stream_channels * silence_duration)
                     silence_pcm = np.zeros(silence_samples, dtype=np.int16).tobytes()
 
-                    subscriber_id = f"eas-decoder-stream-{threading.current_thread().ident}"
+                    tid = threading.current_thread().ident
 
-                    # Subscribe before starting ffmpeg so cleanup is always possible.
-                    subscription_queue = broadcast_queue.subscribe(subscriber_id)
+                    # Subscribe to every source before starting ffmpeg so cleanup is always possible.
+                    subscriptions = {}  # {source_name: (BroadcastQueue, Queue)}
+                    for s_name, bq in source_broadcast_queues.items():
+                        sub_id = f"eas-decoder-stream-{tid}-{s_name}"
+                        subscriptions[s_name] = (bq, bq.subscribe(sub_id))
+
+                    subscription_items = list(subscriptions.values())  # [(bq, q), ...]
 
                     ffmpeg_proc = None
                     feeder = None
@@ -1564,6 +1561,8 @@ def main():
                                     '-c:a', 'libmp3lame',
                                     '-b:a', '32k',
                                     '-reservoir', '0',
+                                    '-write_xing', '0',
+                                    '-id3v2_version', '0',
                                     '-f', 'mp3',
                                     'pipe:1',
                                 ],
@@ -1575,40 +1574,78 @@ def main():
                             logger.error("ffmpeg not found; cannot stream EAS decoder audio")
                             return
 
-                        logger.info(f"EAS decoder stream started (16kHz MP3 via ffmpeg, source={source_name})")
+                        source_names = ', '.join(source_broadcast_queues.keys())
+                        logger.info(
+                            f"EAS decoder stream started "
+                            f"(16kHz MP3 via ffmpeg, sources=[{source_names}])"
+                        )
 
-                        # Feed silence to ffmpeg up front so its first MP3 frame is
-                        # ready before the browser's play() call needs data (~200 ms).
+                        # Seed ffmpeg with ~200 ms of silence so the first MP3 frame is
+                        # ready before the browser's play() call needs data.
                         pre_silence_samples = int(stream_sample_rate * stream_channels * 0.20)
                         try:
                             ffmpeg_proc.stdin.write(np.zeros(pre_silence_samples, dtype=np.int16).tobytes())
                         except (BrokenPipeError, OSError):
                             pass
 
-                        # Writer thread: PCM from broadcast queue → ffmpeg stdin
+                        def _to_mono_float32(chunk):
+                            """Normalize an audio chunk to 1D float32 mono."""
+                            if not isinstance(chunk, np.ndarray):
+                                chunk = np.array(chunk, dtype=np.float32)
+                            if chunk.ndim == 2:
+                                chunk = np.mean(chunk, axis=1)
+                            elif chunk.ndim != 1:
+                                chunk = chunk.flatten()
+                            return chunk.astype(np.float32)
+
+                        # Writer thread: mixed PCM from all broadcast queues → ffmpeg stdin
                         def _feed_ffmpeg():
                             try:
                                 while _running and ffmpeg_proc.poll() is None:
                                     try:
-                                        audio_chunk = subscription_queue.get(timeout=0.2)
+                                        chunks = []
 
-                                        if audio_chunk is None:
+                                        if subscription_items:
+                                            # Block on the first queue to drive timing
+                                            # (chunks arrive ~every 100 ms per source;
+                                            # timeout matches silence_duration above).
+                                            _, first_q = subscription_items[0]
+                                            try:
+                                                raw = first_q.get(timeout=0.1)  # must equal silence_duration
+                                                if raw is not None and len(raw) > 0:
+                                                    chunks.append(_to_mono_float32(raw))
+                                            except queue_module.Empty:
+                                                pass
+
+                                            # Non-blocking drain of all remaining source queues.
+                                            for _, q in subscription_items[1:]:
+                                                try:
+                                                    raw = q.get_nowait()
+                                                    if raw is not None and len(raw) > 0:
+                                                        chunks.append(_to_mono_float32(raw))
+                                                except queue_module.Empty:
+                                                    pass
+
+                                        if not chunks:
                                             ffmpeg_proc.stdin.write(silence_pcm)
                                             continue
 
-                                        if not isinstance(audio_chunk, np.ndarray):
-                                            audio_chunk = np.array(audio_chunk, dtype=np.float32)
+                                        # Mix sources: average to prevent clipping.
+                                        # All sources produce equal-sized 100ms chunks (1600 samples
+                                        # at 16 kHz) so n will match in practice.  The min() guard
+                                        # handles the rare case of variable-sized source chunks:
+                                        # truncating to the shortest keeps the stream clock accurate
+                                        # (zero-padding would silently accumulate latency over time).
+                                        if len(chunks) == 1:
+                                            mixed = chunks[0]
+                                        else:
+                                            n = min(len(c) for c in chunks)
+                                            mixed = np.mean([c[:n] for c in chunks], axis=0)
 
-                                        if audio_chunk.ndim == 2:
-                                            audio_chunk = np.mean(audio_chunk, axis=1)
-                                        elif audio_chunk.ndim != 1:
-                                            audio_chunk = audio_chunk.flatten()
+                                        ffmpeg_proc.stdin.write(
+                                            (np.clip(mixed, -1.0, 1.0) * 32767).astype(np.int16).tobytes()
+                                        )
 
-                                        pcm = (np.clip(audio_chunk, -1.0, 1.0) * 32767).astype(np.int16).tobytes()
-                                        ffmpeg_proc.stdin.write(pcm)
-
-                                    except queue_module.Empty:
-                                        ffmpeg_proc.stdin.write(silence_pcm)
                                     except (BrokenPipeError, OSError):
                                         break
                                     except Exception as exc:
@@ -1622,9 +1659,12 @@ def main():
                         feeder = threading.Thread(target=_feed_ffmpeg, daemon=True, name="eas-decoder-feeder")
                         feeder.start()
 
-                        # Main generator: read MP3 frames from ffmpeg stdout and yield them
+                        # Main generator: yield MP3 in small chunks for smooth, low-latency
+                        # playback.  512 bytes ≈ 1–2 MP3 frames (~128 ms at 32 kbps) vs the
+                        # previous 4096 bytes (~1 s) which caused the browser to receive audio
+                        # in 1-second bursts, making the stream feel sluggish and stuttery.
                         while True:
-                            mp3_chunk = ffmpeg_proc.stdout.read(4096)
+                            mp3_chunk = ffmpeg_proc.stdout.read(512)
                             if not mp3_chunk:
                                 break
                             yield mp3_chunk
@@ -1634,7 +1674,8 @@ def main():
                     except Exception as exc:
                         logger.error(f"Error reading EAS decoder MP3 stream: {exc}")
                     finally:
-                        broadcast_queue.unsubscribe(subscriber_id)
+                        for s_name, (bq, _) in subscriptions.items():
+                            bq.unsubscribe(f"eas-decoder-stream-{tid}-{s_name}")
                         if ffmpeg_proc is not None:
                             try:
                                 ffmpeg_proc.kill()
