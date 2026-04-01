@@ -184,6 +184,23 @@ def _store_received_alert(
         raw_same_header = alert.get('raw_header') or alert.get('raw_text')
         source_name = alert.get('source_name', 'unknown')
 
+        # Determine canonical ingest path (EAS-RF vs EAS-STREAM) by looking up
+        # the audio source configuration.  This is a rare code path (only on
+        # actual EAS detections) so a single DB lookup is acceptable.
+        alert_source = alert.get('alert_source')
+        if not alert_source:
+            try:
+                from app_core.models import AudioSourceConfigDB
+                from app_core.audio.ingest import AudioSourceType
+                from app_utils.alert_sources import ALERT_SOURCE_EAS_RF, ALERT_SOURCE_EAS_STREAM
+                _RF_TYPES = {AudioSourceType.SDR.value, AudioSourceType.ALSA.value,
+                             AudioSourceType.PULSE.value, 'redis_sdr'}
+                cfg = AudioSourceConfigDB.query.filter_by(name=source_name).first()
+                if cfg:
+                    alert_source = ALERT_SOURCE_EAS_RF if cfg.source_type in _RF_TYPES else ALERT_SOURCE_EAS_STREAM
+            except Exception:
+                pass
+
         # Parse timestamps if present
         issue_datetime = None
         purge_datetime = None
@@ -224,6 +241,7 @@ def _store_received_alert(
         received_alert = ReceivedEASAlert(
             received_at=utc_now(),
             source_name=source_name,
+            alert_source=alert_source,
             raw_same_header=raw_same_header,
             event_code=event_code,
             event_name=event_name,
@@ -691,10 +709,19 @@ class EASMonitor:
         if isinstance(alert_data, StreamingSAMEAlert):
             alert_data = _same_alert_to_dict(alert_data)
 
-        alert_data['source_name'] = self.source_name
+        # Prefer the currently active audio source name reported by the adapter
+        # (e.g. "RF Receiver 1") over the static monitor label so that the
+        # database record reflects the actual ingest path.
+        active_source: Optional[str] = None
+        if self.audio_source is not None:
+            try:
+                active_source = self.audio_source.get_active_source()
+            except Exception:
+                pass
+        alert_data['source_name'] = active_source or self.source_name
 
         logger.info(
-            f"EAS Alert detected on '{self.source_name}': "
+            f"EAS Alert detected on '{alert_data['source_name']}': "
             f"{alert_data.get('event_code', 'UNKNOWN')}"
         )
 

@@ -415,6 +415,7 @@ class ReceivedEASAlert(db.Model):
     # Reception details
     received_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False, index=True)
     source_name = db.Column(db.String(100), nullable=False, index=True)  # Which audio source detected this
+    alert_source = db.Column(db.String(32), nullable=True, index=True)  # Canonical ingest path: EAS-RF, EAS-STREAM, etc.
 
     # SAME header data
     raw_same_header = db.Column(db.Text)  # Raw ZCZC string
@@ -451,6 +452,7 @@ class ReceivedEASAlert(db.Model):
             "id": self.id,
             "received_at": self.received_at.isoformat() if self.received_at else None,
             "source_name": self.source_name,
+            "alert_source": self.alert_source,
             "raw_same_header": self.raw_same_header,
             "event_code": self.event_code,
             "event_name": self.event_name,

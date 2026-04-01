@@ -49,6 +49,7 @@ def register_received_alerts_routes(app, logger) -> None:
             # Filters
             search = request.args.get('search', '').strip()
             source_filter = request.args.get('source', '').strip()
+            alert_source_filter = request.args.get('alert_source', '').strip()
             event_filter = request.args.get('event', '').strip()
             decision_filter = request.args.get('decision', '').strip()
 
@@ -69,6 +70,9 @@ def register_received_alerts_routes(app, logger) -> None:
 
             if source_filter:
                 base_query = base_query.filter(ReceivedEASAlert.source_name == source_filter)
+
+            if alert_source_filter:
+                base_query = base_query.filter(ReceivedEASAlert.alert_source == alert_source_filter)
 
             if event_filter:
                 base_query = base_query.filter(ReceivedEASAlert.event_code == event_filter)
@@ -108,6 +112,7 @@ def register_received_alerts_routes(app, logger) -> None:
                 per_page=per_page,
                 search=search,
                 source_filter=source_filter,
+                alert_source_filter=alert_source_filter,
                 event_filter=event_filter,
                 decision_filter=decision_filter,
                 sources=sources,
