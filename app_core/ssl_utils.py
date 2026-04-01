@@ -89,9 +89,25 @@ def get_ssl_certificate_info() -> Dict:
                           if os.path.isdir(os.path.join(check_dir, d)) and d != 'README']
                 if domains:
                     letsencrypt_dir = check_dir
-                    # If found in custom location but not in standard, mark as needing installation
+                    # If found in custom location but not in standard, check whether
+                    # nginx is already configured to use it via the SSL snippet written
+                    # by _install_certificate_internal().  Only mark as needing
+                    # installation when nginx is NOT yet using the certificate.
                     if check_dir != '/etc/letsencrypt/live':
-                        cert_info['needs_installation'] = True
+                        ssl_snippet = '/etc/nginx/snippets/ssl-letsencrypt.conf'
+                        nginx_config = '/etc/nginx/sites-available/eas-station'
+                        snippet_active = False
+                        try:
+                            if os.path.exists(ssl_snippet):
+                                with open(nginx_config) as _f:
+                                    for _line in _f:
+                                        stripped = _line.strip()
+                                        if not stripped.startswith('#') and 'ssl-letsencrypt.conf' in stripped:
+                                            snippet_active = True
+                                            break
+                        except Exception:
+                            pass
+                        cert_info['needs_installation'] = not snippet_active
                     break
             except Exception:
                 continue
