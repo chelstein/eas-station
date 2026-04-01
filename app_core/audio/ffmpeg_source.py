@@ -81,7 +81,7 @@ class FFmpegAudioSource:
     def __init__(
         self,
         source_url: str,
-        sample_rate: int = 22050,
+        sample_rate: int = 16000,
         buffer_seconds: float = 10.0,
         watchdog_timeout: float = 5.0,
         max_restart_attempts: int = 10,
@@ -129,7 +129,7 @@ class FFmpegAudioSource:
         self._current_retry_index = 0
 
         logger.info(f"Initialized FFmpegAudioSource: url={source_url}, "
-                   f"rate={sample_rate}Hz, buffer={buffer_seconds}s")
+                   f"rate={sample_rate}Hz (EAS decoder target rate), buffer={buffer_seconds}s")
 
     def start(self) -> bool:
         """
@@ -200,7 +200,6 @@ class FFmpegAudioSource:
             # FFmpeg command to decode audio to raw PCM
             cmd = [
                 'ffmpeg',
-                '-re',  # Read input at native frame rate (for streams)
                 '-hide_banner',  # Reduce console output
                 '-nostdin',  # Don't expect keyboard input
                 '-i', self.source_url,
