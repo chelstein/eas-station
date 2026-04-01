@@ -14,7 +14,6 @@ Create Date: 2026-04-01
 
 from __future__ import annotations
 
-import sqlalchemy as sa
 from alembic import op
 
 revision = "20260401_add_alert_source_to_received_alerts"
@@ -24,17 +23,15 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "received_eas_alerts",
-        sa.Column("alert_source", sa.String(32), nullable=True, index=True),
+    op.execute(
+        "ALTER TABLE received_eas_alerts ADD COLUMN IF NOT EXISTS alert_source VARCHAR(32)"
     )
-    op.create_index(
-        "ix_received_eas_alerts_alert_source",
-        "received_eas_alerts",
-        ["alert_source"],
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS ix_received_eas_alerts_alert_source"
+        " ON received_eas_alerts (alert_source)"
     )
 
 
 def downgrade() -> None:
-    op.drop_index("ix_received_eas_alerts_alert_source", table_name="received_eas_alerts")
+    op.execute("DROP INDEX IF EXISTS ix_received_eas_alerts_alert_source")
     op.drop_column("received_eas_alerts", "alert_source")

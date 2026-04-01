@@ -11,9 +11,7 @@ Create Date: 2026-03-31
 
 from __future__ import annotations
 
-import sqlalchemy as sa
 from alembic import op
-from sqlalchemy.dialects.postgresql import JSONB
 
 revision = "20260331_add_forwarded_event_codes"
 down_revision = "20260327_add_vtec_columns_to_cap_alerts"
@@ -22,14 +20,8 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "eas_settings",
-        sa.Column(
-            "forwarded_event_codes",
-            JSONB(),
-            nullable=False,
-            server_default="'[]'::jsonb",
-        ),
+    op.execute(
+        "ALTER TABLE eas_settings ADD COLUMN IF NOT EXISTS forwarded_event_codes JSONB NOT NULL DEFAULT '[]'::jsonb"
     )
 
 
