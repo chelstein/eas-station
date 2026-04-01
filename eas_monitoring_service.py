@@ -1463,11 +1463,11 @@ def main():
                 for decoder CPU efficiency.
 
                 Returns:
-                    Response: Streaming MP3 audio at 16kHz (what the decoder actually sees)
+                    Response: Streaming MP3 audio at 16kHz (what the decoder actually sees).
+                    MP3 (audio/mpeg) is used because streaming WAV with unknown file sizes is
+                    not supported by Safari on iOS.
                 """
                 import queue as queue_module
-                import io
-                import struct
                 import numpy as np
 
                 if not _audio_controller:
@@ -1524,93 +1524,133 @@ def main():
 
                 broadcast_queue = adapter.get_eas_broadcast_queue()
 
-                def generate_eas_decoder_wav():
-                    """Stream the EAS decoder's 16kHz mono audio as a WAV.
+                def generate_eas_decoder_mp3():
+                    """Stream the EAS decoder's 16kHz mono audio as MP3.
 
-                    Mirrors the working WAV stream generator used for regular audio
-                    sources.  The WAV header is yielded immediately so the browser
-                    recognises the format before any PCM data arrives, eliminating
-                    the startup latency that caused the previous MP3/FFmpeg
-                    implementation to fail.  No external process is required.
+                    Uses an ffmpeg subprocess to encode raw 16-bit PCM → MP3 so
+                    that the stream works on every browser, including Safari on iOS
+                    (which rejects streaming WAV with unknown/infinite file sizes).
+
+                    The generator seeds ffmpeg with ~200 ms of silence before
+                    pulling from the broadcast queue.  This ensures the first MP3
+                    frame is available before the browser's play() call times out,
+                    avoiding the startup-latency issue that affected an earlier
+                    ffmpeg implementation.
                     """
+                    import subprocess as _subprocess
+
                     stream_sample_rate = 16000  # EAS decoder always uses 16kHz
                     stream_channels = 1
-                    bits_per_sample = 16
+                    silence_duration = 0.05
+                    silence_samples = int(stream_sample_rate * stream_channels * silence_duration)
+                    silence_pcm = np.zeros(silence_samples, dtype=np.int16).tobytes()
 
                     subscriber_id = f"eas-decoder-stream-{threading.current_thread().ident}"
 
+                    # Subscribe before starting ffmpeg so cleanup is always possible.
+                    subscription_queue = broadcast_queue.subscribe(subscriber_id)
+
+                    ffmpeg_proc = None
+                    feeder = None
                     try:
-                        subscription_queue = broadcast_queue.subscribe(subscriber_id)
-                        logger.info(
-                            f"EAS decoder stream started (16kHz WAV from {source_name})"
-                        )
+                        try:
+                            ffmpeg_proc = _subprocess.Popen(
+                                [
+                                    'ffmpeg', '-loglevel', 'error',
+                                    '-f', 's16le',
+                                    '-ar', str(stream_sample_rate),
+                                    '-ac', str(stream_channels),
+                                    '-i', 'pipe:0',
+                                    '-c:a', 'libmp3lame',
+                                    '-b:a', '32k',
+                                    '-reservoir', '0',
+                                    '-f', 'mp3',
+                                    'pipe:1',
+                                ],
+                                stdin=_subprocess.PIPE,
+                                stdout=_subprocess.PIPE,
+                                stderr=_subprocess.DEVNULL,
+                            )
+                        except FileNotFoundError:
+                            logger.error("ffmpeg not found; cannot stream EAS decoder audio")
+                            return
 
-                        # Yield WAV header immediately — browser needs this to
-                        # recognise audio/wav before any PCM samples arrive.
-                        wav_header = io.BytesIO()
-                        wav_header.write(b'RIFF')
-                        wav_header.write(struct.pack('<I', 0xFFFFFFFF))  # streaming: unknown size
-                        wav_header.write(b'WAVE')
-                        wav_header.write(b'fmt ')
-                        wav_header.write(struct.pack('<I', 16))
-                        wav_header.write(struct.pack('<H', 1))  # PCM
-                        wav_header.write(struct.pack('<H', stream_channels))
-                        wav_header.write(struct.pack('<I', stream_sample_rate))
-                        wav_header.write(
-                            struct.pack('<I', stream_sample_rate * stream_channels * bits_per_sample // 8)
-                        )
-                        wav_header.write(struct.pack('<H', stream_channels * bits_per_sample // 8))
-                        wav_header.write(struct.pack('<H', bits_per_sample))
-                        wav_header.write(b'data')
-                        wav_header.write(struct.pack('<I', 0xFFFFFFFF))  # streaming: unknown size
-                        yield wav_header.getvalue()
+                        logger.info(f"EAS decoder stream started (16kHz MP3 via ffmpeg, source={source_name})")
 
-                        silence_duration = 0.05
-                        silence_samples = int(
-                            stream_sample_rate * stream_channels * silence_duration
-                        )
+                        # Feed silence to ffmpeg up front so its first MP3 frame is
+                        # ready before the browser's play() call needs data (~200 ms).
+                        pre_silence_samples = int(stream_sample_rate * stream_channels * 0.20)
+                        try:
+                            ffmpeg_proc.stdin.write(np.zeros(pre_silence_samples, dtype=np.int16).tobytes())
+                        except (BrokenPipeError, OSError):
+                            pass
 
-                        while _running:
+                        # Writer thread: PCM from broadcast queue → ffmpeg stdin
+                        def _feed_ffmpeg():
                             try:
-                                audio_chunk = subscription_queue.get(timeout=0.2)
+                                while _running and ffmpeg_proc.poll() is None:
+                                    try:
+                                        audio_chunk = subscription_queue.get(timeout=0.2)
 
-                                if audio_chunk is None:
-                                    # Sentinel from source — yield silence to keep stream alive
-                                    yield np.zeros(silence_samples, dtype=np.int16).tobytes()
-                                    time.sleep(silence_duration)
-                                    continue
+                                        if audio_chunk is None:
+                                            ffmpeg_proc.stdin.write(silence_pcm)
+                                            continue
 
-                                if not isinstance(audio_chunk, np.ndarray):
-                                    audio_chunk = np.array(audio_chunk, dtype=np.float32)
+                                        if not isinstance(audio_chunk, np.ndarray):
+                                            audio_chunk = np.array(audio_chunk, dtype=np.float32)
 
-                                if audio_chunk.ndim == 2 and stream_channels == 1:
-                                    audio_chunk = np.mean(audio_chunk, axis=1)
-                                elif audio_chunk.ndim == 1:
+                                        if audio_chunk.ndim == 2:
+                                            audio_chunk = np.mean(audio_chunk, axis=1)
+                                        elif audio_chunk.ndim != 1:
+                                            audio_chunk = audio_chunk.flatten()
+
+                                        pcm = (np.clip(audio_chunk, -1.0, 1.0) * 32767).astype(np.int16).tobytes()
+                                        ffmpeg_proc.stdin.write(pcm)
+
+                                    except queue_module.Empty:
+                                        ffmpeg_proc.stdin.write(silence_pcm)
+                                    except (BrokenPipeError, OSError):
+                                        break
+                                    except Exception as exc:
+                                        logger.error(f"EAS decoder feeder error: {exc}")
+                            finally:
+                                try:
+                                    ffmpeg_proc.stdin.close()
+                                except OSError:
                                     pass
-                                else:
-                                    audio_chunk = audio_chunk.flatten()
 
-                                yield (
-                                    np.clip(audio_chunk, -1.0, 1.0) * 32767
-                                ).astype(np.int16).tobytes()
+                        feeder = threading.Thread(target=_feed_ffmpeg, daemon=True, name="eas-decoder-feeder")
+                        feeder.start()
 
-                            except queue_module.Empty:
-                                # No audio yet — yield silence so the browser
-                                # keeps the connection open.
-                                yield np.zeros(silence_samples, dtype=np.int16).tobytes()
-                            except Exception as e:
-                                logger.error(f"Error in EAS decoder stream: {e}")
-                                yield np.zeros(silence_samples, dtype=np.int16).tobytes()
-                                time.sleep(0.05)
+                        # Main generator: read MP3 frames from ffmpeg stdout and yield them
+                        while True:
+                            mp3_chunk = ffmpeg_proc.stdout.read(4096)
+                            if not mp3_chunk:
+                                break
+                            yield mp3_chunk
+
+                    except GeneratorExit:
+                        pass
+                    except Exception as exc:
+                        logger.error(f"Error reading EAS decoder MP3 stream: {exc}")
                     finally:
                         broadcast_queue.unsubscribe(subscriber_id)
+                        if ffmpeg_proc is not None:
+                            try:
+                                ffmpeg_proc.kill()
+                            except OSError:
+                                pass
+                        if feeder is not None:
+                            feeder.join(timeout=2)
+                            if feeder.is_alive():
+                                logger.warning("EAS decoder feeder thread did not stop within timeout")
                         logger.info("EAS decoder stream ended")
 
                 return Response(
-                    stream_with_context(generate_eas_decoder_wav()),
-                    mimetype='audio/wav',
+                    stream_with_context(generate_eas_decoder_mp3()),
+                    mimetype='audio/mpeg',
                     headers={
-                        'Content-Disposition': 'inline; filename="eas-decoder-16khz.wav"',
+                        'Content-Disposition': 'inline; filename="eas-decoder-16khz.mp3"',
                         'Cache-Control': 'no-cache, no-store, must-revalidate',
                         'Pragma': 'no-cache',
                         'Expires': '0',
