@@ -481,7 +481,7 @@ def ensure_eas_audio_columns(logger) -> bool:
                     "Adding eas_messages.%s column for cached message payloads", column
                 )
                 connection.execute(
-                    text(f"ALTER TABLE eas_messages ADD COLUMN {column} {definition}")
+                    text(f"ALTER TABLE eas_messages ADD COLUMN IF NOT EXISTS {column} {definition}")
                 )
                 added_columns.append(column)
 
@@ -610,7 +610,7 @@ def ensure_eas_settings_columns(logger) -> bool:
                     "Adding eas_settings.%s column (migration not yet applied)", column
                 )
                 connection.execute(
-                    text(f"ALTER TABLE eas_settings ADD COLUMN {column} {definition}")
+                    text(f"ALTER TABLE eas_settings ADD COLUMN IF NOT EXISTS {column} {definition}")
                 )
         return True
     except Exception as exc:  # pragma: no cover - defensive fallback
@@ -761,7 +761,7 @@ def ensure_manual_eas_audio_columns(logger) -> bool:
                     "Adding manual_eas_activations.%s column for cached audio payloads", column
                 )
                 connection.execute(
-                    text(f"ALTER TABLE manual_eas_activations ADD COLUMN {column} {definition}")
+                    text(f"ALTER TABLE manual_eas_activations ADD COLUMN IF NOT EXISTS {column} {definition}")
                 )
 
         return True
