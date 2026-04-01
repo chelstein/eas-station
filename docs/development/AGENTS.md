@@ -2,7 +2,7 @@
 
 This document provides coding standards and guidelines for AI agents (including Claude, GitHub Copilot, Cursor, and other AI assistants) when working on the NOAA CAP Emergency Alert System codebase.
 
-> **📍 LOCATION NOTE**: This file is maintained in `docs/development/AGENTS.md` (canonical source) and automatically copied to `.github/agents/AGENTS.md` for GitHub Copilot agent sessions. Any changes should be made to the `docs/development/` version, then copied to `.github/agents/`.
+> **📍 LOCATION NOTE**: This file is the single canonical source of truth, maintained at `docs/development/AGENTS.md`. `.github/agents/AGENTS.md` is a **symbolic link** pointing to this file, so both paths always refer to the same content. Edit only `docs/development/AGENTS.md` — the change is immediately visible to all agent platforms with no copy step required.
 
 ---
 
