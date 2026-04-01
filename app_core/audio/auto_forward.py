@@ -489,8 +489,8 @@ def auto_forward_ota_alert(
         id=None,
         identifier=f"OTA-{source_name}-{now.strftime('%Y%m%d%H%M%S')}",
         event=event_name,
-        headline=f"Received {event_name} from {source_name}",
-        description=f"EAS alert received over the air from {source_name}.",
+        headline=f"{event_name} — {source_name}",
+        description='',
         instruction=None,
         sent=sent_dt,
         expires=expires_dt,
@@ -502,6 +502,19 @@ def auto_forward_ota_alert(
         raw_json=None,
     )
 
+    # Build human-readable area description from FIPS codes for TTS narration
+    try:
+        from app_utils.fips_codes import US_FIPS_LOOKUP as _FIPS_NAMES
+        _area_parts = [
+            _FIPS_NAMES[c] for c in fips_codes if c in _FIPS_NAMES
+        ]
+        area_desc = '; '.join(_area_parts) if _area_parts else 'the affected area'
+    except Exception:
+        area_desc = 'the affected area'
+
+    # Originator code from the received SAME header (e.g. WXR, EAS, CIV, PEP)
+    originator_code = (alert_dict.get('originator') or 'WXR').strip().upper()
+
     # Build payload with SAME geocode from OTA FIPS codes
     payload = {
         'identifier': alert_object.identifier,
@@ -512,9 +525,14 @@ def auto_forward_ota_alert(
         'expires': expires_dt,
         'raw_json': {
             'properties': {
+                'event': event_name,
+                'areaDesc': area_desc,
                 'geocode': {
                     'SAME': list(fips_codes),
-                }
+                },
+                'parameters': {
+                    'EAS-ORG': originator_code,
+                },
             }
         },
         'forwarding_decision': 'forwarded',
