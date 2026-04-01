@@ -126,6 +126,18 @@
                                 </select>
                             </div>
                             <div class="col-6 col-lg-2">
+                                <label for="date_from" class="form-label">From</label>
+                                <input type="date" class="form-control" id="date_from" name="date_from"
+                                       value="{{ current_filters.date_from or '' }}"
+                                       title="Filter alerts sent on or after this date">
+                            </div>
+                            <div class="col-6 col-lg-2">
+                                <label for="date_to" class="form-label">To</label>
+                                <input type="date" class="form-control" id="date_to" name="date_to"
+                                       value="{{ current_filters.date_to or '' }}"
+                                       title="Filter alerts sent on or before this date">
+                            </div>
+                            <div class="col-6 col-lg-2">
                                 <label for="per_page" class="form-label">Per Page</label>
                                 <select class="form-select" id="per_page" name="per_page">
                                     <option value="25" {% if current_filters.per_page == 25 %}selected{% endif %}>25</option>
@@ -474,6 +486,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('filterForm');
     const selects = form.querySelectorAll('select');
     const checkbox = form.querySelector('#show_expired');
+    const dateFrom = form.querySelector('#date_from');
+    const dateTo = form.querySelector('#date_to');
 
     selects.forEach(select => {
         select.addEventListener('change', function() {
@@ -486,6 +500,15 @@ document.addEventListener('DOMContentLoaded', function() {
             form.submit();
         });
     }
+
+    // Submit on date change (with a brief debounce so the user can finish typing)
+    let dateDebounce;
+    function onDateChange() {
+        clearTimeout(dateDebounce);
+        dateDebounce = setTimeout(function() { form.submit(); }, 600);
+    }
+    if (dateFrom) dateFrom.addEventListener('change', onDateChange);
+    if (dateTo) dateTo.addEventListener('change', onDateChange);
 });
 
 // Simple toast notification fallback

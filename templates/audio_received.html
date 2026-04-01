@@ -145,8 +145,9 @@
                                     <th style="width: 15%">Event</th>
                                     <th style="width: 8%">Originator</th>
                                     <th style="width: 15%">FIPS Codes</th>
-                                    <th style="width: 12%">Decision</th>
-                                    <th style="width: 20%">Reason</th>
+                                    <th style="width: 9%">Confidence</th>
+                                    <th style="width: 11%">Decision</th>
+                                    <th style="width: 18%">Reason</th>
                                     <th style="width: 8%">Actions</th>
                                 </tr>
                             </thead>
@@ -183,6 +184,20 @@
                                         <small>{{ alert.fips_codes|join(', ') }}</small>
                                         {% else %}
                                         <small class="text-muted">None</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if alert.decode_confidence is not none %}
+                                        {% set pct = (alert.decode_confidence * 100) | round(1) %}
+                                        {% if alert.decode_confidence >= 0.75 %}
+                                        <span class="badge bg-success" title="Decode confidence: {{ pct }}%">{{ pct }}%</span>
+                                        {% elif alert.decode_confidence >= 0.5 %}
+                                        <span class="badge bg-warning text-dark" title="Decode confidence: {{ pct }}%">{{ pct }}%</span>
+                                        {% else %}
+                                        <span class="badge bg-danger" title="Decode confidence: {{ pct }}% — below recommended threshold">{{ pct }}%</span>
+                                        {% endif %}
+                                        {% else %}
+                                        <span class="text-muted">—</span>
                                         {% endif %}
                                     </td>
                                     <td>

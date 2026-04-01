@@ -934,6 +934,8 @@ def register(app: Flask, logger) -> None:
                 "yes",
                 "on",
             }
+            date_from = request.args.get("date_from", "").strip()
+            date_to = request.args.get("date_to", "").strip()
 
             # Sorting parameters
             _sortable_columns = {
@@ -1031,6 +1033,21 @@ def register(app: Flask, logger) -> None:
                 query = query.filter(CAPAlert.event == event_filter)
             if source_filter:
                 query = query.filter(CAPAlert.source == source_filter)
+
+            if date_from:
+                try:
+                    date_from_dt = datetime.strptime(date_from, "%Y-%m-%d")
+                    query = query.filter(CAPAlert.sent >= date_from_dt)
+                except ValueError:
+                    date_from = ""
+
+            if date_to:
+                try:
+                    from datetime import timedelta
+                    date_to_dt = datetime.strptime(date_to, "%Y-%m-%d") + timedelta(days=1)
+                    query = query.filter(CAPAlert.sent < date_to_dt)
+                except ValueError:
+                    date_to = ""
 
             if vtec_office_filter:
                 query = query.filter(CAPAlert.vtec_office == vtec_office_filter)
@@ -1215,6 +1232,8 @@ def register(app: Flask, logger) -> None:
                 "source": source_filter,
                 "per_page": per_page,
                 "show_expired": show_expired,
+                "date_from": date_from,
+                "date_to": date_to,
                 "vtec_office": vtec_office_filter,
                 "vtec_etn": vtec_etn_filter,
                 "vtec_year": vtec_year_filter,

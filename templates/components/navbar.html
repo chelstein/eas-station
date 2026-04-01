@@ -48,6 +48,16 @@
                 <span class="health-dot health-good" id="system-health-dot"></span>
                 <span class="health-text" id="system-health-text">System OK</span>
             </div>
+
+            <!-- WebSocket Live Indicator -->
+            <div class="ws-indicator ws-indicator--live"
+                 id="ws-live-indicator"
+                 role="status"
+                 aria-live="polite"
+                 title="Real-time updates active">
+                <span class="ws-indicator__dot" id="ws-indicator-dot"></span>
+                <span class="ws-indicator__text" id="ws-indicator-text">Live</span>
+            </div>
         </div>
 
         <!-- Mobile Toggle -->
@@ -464,6 +474,54 @@ function updateSystemHealth(status = 'good', message = 'System OK') {
         indicator.title = message;
     }
 }
+
+// WebSocket live indicator
+(function() {
+    const indicator = document.getElementById('ws-live-indicator');
+    const dot = document.getElementById('ws-indicator-dot');
+    const text = document.getElementById('ws-indicator-text');
+
+    function setLive() {
+        if (!indicator) return;
+        indicator.className = 'ws-indicator ws-indicator--live';
+        indicator.title = 'Real-time updates active';
+        if (text) text.textContent = 'Live';
+    }
+
+    function setReconnecting() {
+        if (!indicator) return;
+        indicator.className = 'ws-indicator ws-indicator--reconnecting';
+        indicator.title = 'Reconnecting to real-time updates…';
+        if (text) text.textContent = 'Reconnecting…';
+    }
+
+    function setPolling() {
+        if (!indicator) return;
+        indicator.className = 'ws-indicator ws-indicator--polling';
+        indicator.title = 'Using polling fallback (WebSocket unavailable)';
+        if (text) text.textContent = 'Polling';
+    }
+
+    window.addEventListener('eas-websocket-connected', setLive);
+    window.addEventListener('eas-websocket-disconnected', function(e) {
+        const reason = e.detail && e.detail.reason;
+        // transport close is a brief reconnect attempt; io server disconnect means server closed it
+        if (reason === 'io server disconnect' || reason === 'transport error') {
+            setPolling();
+        } else {
+            setReconnecting();
+        }
+    });
+
+    // Show polling state if Socket.IO is not available at all
+    document.addEventListener('DOMContentLoaded', function() {
+        setTimeout(function() {
+            if (typeof io === 'undefined') {
+                setPolling();
+            }
+        }, 1500);
+    });
+})();
 
 // Check system health on load
 document.addEventListener('DOMContentLoaded', function() {
