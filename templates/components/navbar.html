@@ -719,22 +719,27 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Subscribe to broadcast state (1 Hz) — also carries active_alert_count
-    if (window.EASWebSocket && window.EASWebSocket.subscribe) {
-        window.EASWebSocket.subscribe('broadcast_state_update', function (data) {
-            _broadcastActive = !!(data && data.active);
-            if (data && typeof data.active_alert_count === 'number') {
-                _activeAlerts = data.active_alert_count;
-            }
-            _render();
-        });
+    // Subscribe to WebSocket events.  websocket.js loads after navbar.html is
+    // parsed, so window.EASWebSocket is not yet defined when this IIFE runs.
+    // Defer until DOMContentLoaded, by which point all <script> tags in
+    // base.html have been evaluated and EASWebSocket is guaranteed to exist.
+    document.addEventListener('DOMContentLoaded', function () {
+        if (window.EASWebSocket && window.EASWebSocket.subscribe) {
+            window.EASWebSocket.subscribe('broadcast_state_update', function (data) {
+                _broadcastActive = !!(data && data.active);
+                if (data && typeof data.active_alert_count === 'number') {
+                    _activeAlerts = data.active_alert_count;
+                }
+                _render();
+            });
 
-        // Subscribe to system health (60 s)
-        window.EASWebSocket.subscribe('system_health_update', function (data) {
-            _healthStatus = (data && data.status) ? data.status : 'unknown';
-            _render();
-        });
-    }
+            // Subscribe to system health (60 s)
+            window.EASWebSocket.subscribe('system_health_update', function (data) {
+                _healthStatus = (data && data.status) ? data.status : 'unknown';
+                _render();
+            });
+        }
+    });
 
     // Seed health from the on-load fetch that already fires above
     var _origUpdate = window.updateSystemHealth;
