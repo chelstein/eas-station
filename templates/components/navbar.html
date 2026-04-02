@@ -60,14 +60,16 @@
             </div>
 
             <!-- Stack Light Status Widget
-                 Red  = On-air / broadcast active
+                 Red   = On-air / broadcast active (flashing)
                  Amber = System degraded / warning
-                 Green = Healthy & monitoring active -->
+                 Green = Healthy & monitoring active
+                 Blue  = Active unexpired alert in system -->
             <div class="sl-tower" id="slTower" aria-label="Station status light" role="status">
                 <div class="sl-housing">
                     <div class="sl-lens sl-lens--red"   id="slRed"   title="On-air"></div>
                     <div class="sl-lens sl-lens--amber" id="slAmber" title="Warning"></div>
                     <div class="sl-lens sl-lens--green" id="slGreen" title="Healthy"></div>
+                    <div class="sl-lens sl-lens--blue"  id="slBlue"  title="Active alert"></div>
                 </div>
                 <div class="sl-base"></div>
             </div>
@@ -561,6 +563,15 @@
     border-color: rgba(60,220,80,0.5);
 }
 
+.sl-lens--blue.sl-on {
+    background: radial-gradient(circle at 35% 30%, #aaddff, #2299ff 55%, #0055cc 100%);
+    box-shadow:
+        0 0 6px 2px rgba(30, 140, 255, 0.8),
+        0 0 14px 4px rgba(0, 100, 255, 0.45),
+        inset 0 1px 0 rgba(255,255,255,0.25);
+    border-color: rgba(60,160,255,0.5);
+}
+
 /* Flash animation for active broadcast (red) */
 @keyframes sl-flash {
     0%, 49% { opacity: 1; }
@@ -667,8 +678,9 @@ document.addEventListener('DOMContentLoaded', function() {
 (function () {
     'use strict';
 
-    var _healthStatus  = 'unknown';  // 'healthy' | 'degraded' | 'critical' | 'unknown'
+    var _healthStatus    = 'unknown';  // 'healthy' | 'degraded' | 'critical' | 'unknown'
     var _broadcastActive = false;
+    var _activeAlerts    = 0;          // count of unexpired alerts in system
 
     function _setLight(id, on, flash) {
         var el = document.getElementById(id);
@@ -678,9 +690,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function _render() {
-        var broadcasting = _broadcastActive;
-        var healthy   = _healthStatus === 'healthy';
-        var degraded  = _healthStatus === 'degraded' || _healthStatus === 'critical';
+        var broadcasting  = _broadcastActive;
+        var healthy       = _healthStatus === 'healthy';
+        var degraded      = _healthStatus === 'degraded' || _healthStatus === 'critical';
+        var hasActiveAlert = _activeAlerts > 0;
 
         // Red: on when broadcasting, flashing for emphasis
         _setLight('slRed',   broadcasting, broadcasting);
@@ -691,21 +704,28 @@ document.addEventListener('DOMContentLoaded', function() {
         // Green: on when healthy (regardless of broadcast — station is alive)
         _setLight('slGreen', healthy, false);
 
+        // Blue: on when there is at least one active unexpired alert in the system
+        _setLight('slBlue', hasActiveAlert, false);
+
         // Update tower tooltip
         var tower = document.getElementById('slTower');
         if (tower) {
             var tip = [];
-            if (broadcasting) tip.push('ON-AIR');
-            if (degraded)     tip.push('System warning');
-            if (healthy)      tip.push('Healthy');
+            if (broadcasting)   tip.push('ON-AIR');
+            if (hasActiveAlert) tip.push(_activeAlerts + ' active alert' + (_activeAlerts !== 1 ? 's' : ''));
+            if (degraded)       tip.push('System warning');
+            if (healthy)        tip.push('Healthy');
             tower.title = tip.length ? tip.join(' · ') : 'Status unknown';
         }
     }
 
-    // Subscribe to broadcast state (1 Hz)
+    // Subscribe to broadcast state (1 Hz) — also carries active_alert_count
     if (window.EASWebSocket && window.EASWebSocket.subscribe) {
         window.EASWebSocket.subscribe('broadcast_state_update', function (data) {
             _broadcastActive = !!(data && data.active);
+            if (data && typeof data.active_alert_count === 'number') {
+                _activeAlerts = data.active_alert_count;
+            }
             _render();
         });
 

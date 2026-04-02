@@ -771,13 +771,30 @@ def _emit_broadcast_state_update(socketio: 'SocketIO') -> None:
 
     Reads the ``eas:broadcast_active`` Redis key written by
     :func:`~app_utils.eas.set_broadcast_active` and pushes it so every page
-    can show or hide the global countdown timer overlay.
+    can show or hide the global countdown timer overlay.  Also includes a
+    count of active (unexpired) CAP alerts so the blue stack light can illuminate.
     """
     try:
         from app_utils.eas import get_broadcast_state
         state = get_broadcast_state()
+
+        # Count active unexpired alerts for the blue stack-light indicator
+        active_alert_count = 0
+        try:
+            from datetime import datetime, timezone as _tz
+            from app_core.models import CAPAlert
+            now_utc = datetime.now(_tz.utc)
+            active_alert_count = (
+                CAPAlert.query
+                .filter(CAPAlert.expires > now_utc)
+                .count()
+            )
+        except Exception:
+            pass
+
         _safe_emit(socketio, 'broadcast_state_update', {
             **state,
+            'active_alert_count': active_alert_count,
             'timestamp': time.time(),
         })
     except Exception as e:
