@@ -137,6 +137,11 @@ def send_eas_alert_email(
             subtype="wav",
             filename=filename,
         )
+        # Python only sets filename in Content-Disposition; also set name in
+        # Content-Type so iOS Mail and similar clients display it correctly.
+        for part in msg.iter_attachments():
+            if part.get_content_type() == "audio/wav":
+                part.set_param("name", filename, header="Content-Type")
 
     try:
         with build_smtp_connection(smtp_host, smtp_port, smtp_security) as smtp:
