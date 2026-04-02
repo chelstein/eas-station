@@ -173,7 +173,7 @@ from app_utils.location_settings import (
 print(f"[CAP_POLLER] Importing app_utils.optimized_parsing...")
 from app_utils.optimized_parsing import json_loads, json_dumps, parse_xml_string, get_element_tree_module
 from app_utils.ipaws_enrichment import extract_certificate_info, save_ipaws_audio
-from app_utils.vtec import extract_vtec_identity
+from app_utils.vtec import extract_vtec_identity, VTEC_TERMINAL_ACTIONS
 from app_utils.eas import load_eas_config
 from app_core.audio.auto_forward import auto_forward_cap_alert
 print(f"[CAP_POLLER] Importing app_core.models...")
@@ -2630,6 +2630,14 @@ class CAPPoller:
         ]):
             return 0
 
+        # Build the field update dict.  For terminal VTEC actions (CAN / EXP)
+        # the event is definitively over, so also expire the prior alerts
+        # immediately so they drop out of every active-alerts view.
+        updates: dict = {'superseded_by_id': new_alert.id}
+        if new_alert.vtec_action in VTEC_TERMINAL_ACTIONS:
+            updates['expires'] = utc_now()
+            updates['status'] = 'Expired'
+
         updated = (
             self.db_session.query(CAPAlert)
             .filter(
@@ -2641,13 +2649,14 @@ class CAPPoller:
                 CAPAlert.id                != new_alert.id,
                 CAPAlert.superseded_by_id.is_(None),
             )
-            .update({'superseded_by_id': new_alert.id}, synchronize_session='fetch')
+            .update(updates, synchronize_session='fetch')
         )
         if updated:
             self.db_session.commit()
             self.logger.info(
-                "Marked %d prior VTEC chain alert(s) superseded by %s (action=%s)",
+                "Marked %d prior VTEC chain alert(s) superseded by %s (action=%s%s)",
                 updated, new_alert.identifier, new_alert.vtec_action,
+                ', expired immediately' if new_alert.vtec_action in VTEC_TERMINAL_ACTIONS else '',
             )
         return updated
 
