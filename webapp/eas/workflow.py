@@ -1276,23 +1276,28 @@ def register_workflow_routes(bp, logger, eas_config) -> None:
 
             send_result['gpio_activated'] = activated_any
 
+            # Set broadcast state as soon as the airchain is controlled — this
+            # fires the global countdown timer and stack light on every page,
+            # regardless of whether an audio player is configured (e.g. RWT on
+            # a headless encoder still takes the airchain via GPIO).
+            from app_utils.event_codes import EVENT_CODE_REGISTRY as _ECR
+            _ei = _ECR.get(event_code or '', {})
+            _elabel = (
+                _ei.get('name', event_code) if isinstance(_ei, dict) else event_code
+            ) or 'EAS Alert'
+            set_broadcast_active(
+                event_code=event_code or '',
+                label=_elabel,
+                duration_seconds=playback_duration,
+                source='manual',
+            )
+
             # Play audio via configured player command
             if audio_player_cmd:
                 try:
                     command = list(audio_player_cmd) + [tmp_path]
                     workflow_logger.info(
                         'Playing manual EAS audio: %s', ' '.join(command),
-                    )
-                    from app_utils.event_codes import EVENT_CODE_REGISTRY as _ECR
-                    _ei = _ECR.get(event_code or '', {})
-                    _elabel = (
-                        _ei.get('name', event_code) if isinstance(_ei, dict) else event_code
-                    ) or 'EAS Alert'
-                    set_broadcast_active(
-                        event_code=event_code or '',
-                        label=_elabel,
-                        duration_seconds=playback_duration,
-                        source='manual',
                     )
                     subprocess.run(command, check=False, timeout=max_activation_seconds + 10)
                     send_result['audio_played'] = True
@@ -1304,8 +1309,6 @@ def register_workflow_routes(bp, logger, eas_config) -> None:
                     workflow_logger.warning(
                         'Audio playback failed: %s', exc,
                     )
-                finally:
-                    clear_broadcast_active()
             else:
                 workflow_logger.info(
                     'No audio player configured; skipping playback for '
@@ -1315,7 +1318,8 @@ def register_workflow_routes(bp, logger, eas_config) -> None:
                 send_result['audio_player_configured'] = False
 
         finally:
-            # Deactivate GPIO relays
+            # Clear broadcast state and deactivate GPIO relays
+            clear_broadcast_active()
             if gpio_controller and activated_any:
                 try:
                     if manager_handled and gpio_behavior_manager:

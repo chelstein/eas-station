@@ -153,6 +153,13 @@
                                         {% if message.alert_identifier %}
                                         <div class="small text-muted">{{ message.alert_identifier }}</div>
                                         {% endif %}
+                                        {% if message.message_text %}
+                                        <div class="mt-1">
+                                            <span class="small text-muted fst-italic" style="display:block;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ message.message_text }}">
+                                                <i class="fas fa-microphone me-1 opacity-50"></i>{{ message.message_text[:120] }}{% if message.message_text|length > 120 %}…{% endif %}
+                                            </span>
+                                        </div>
+                                        {% endif %}
                                     </td>
                                     <td>
                                         {% if message.severity %}

@@ -1038,6 +1038,13 @@ def _normalize_text_for_tts(text: str) -> str:
     # These clean up formatting conventions unique to NWS/NOAA alert text
     # before the acronym table runs.
 
+    # Asterisk removal — NWS uses "* WHAT...", "* WHERE...", "* WHEN..." etc.
+    # as bullet-point markers.  TTS engines read a bare asterisk as "asterisk"
+    # which sounds unnatural.  Strip leading bullet asterisks first, then remove
+    # any remaining asterisks so they are never spoken.
+    result = re.sub(r'^\s*\*\s*', '', result, flags=re.MULTILINE)
+    result = result.replace('*', '')
+
     # Whitespace / punctuation — convert structural whitespace to spoken
     # pauses so TTS does not read the whole alert as a run-on sentence.
 
@@ -1272,9 +1279,15 @@ def _compose_message_text(alert: object, payload: Optional[Dict[str, object]] = 
     else:
         full_text = fcc_required
 
-    # Hard cap at 1800 characters (ECIG §3.6.5)
-    if len(full_text) > 1800:
-        full_text = full_text[:1797] + '...'
+    # Cap TTS narration at 4096 characters.  The SAME header data field is a
+    # separate 255-character field; TTS narration has no FCC length mandate and
+    # 4096 chars comfortably fits within all major TTS provider API limits
+    # (Azure OpenAI TTS: 4096; Azure Speech SDK: no hard per-call limit).
+    # Long NWS alerts with multi-county boilerplate preamble previously hit
+    # the old 1800-char limit before the specific * WHAT / * WHERE detail
+    # lines, cutting off the most actionable parts of the message.
+    if len(full_text) > 4096:
+        full_text = full_text[:4093] + '...'
 
     return _normalize_text_for_tts(full_text)
 

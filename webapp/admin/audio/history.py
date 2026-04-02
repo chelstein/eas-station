@@ -188,6 +188,7 @@ def register_history_routes(app, logger) -> None:
                         'alert_identifier': _alert_identifier,
                         'eom_url': eom_url,
                         'summary_data': summary_data,
+                        'message_text': message.message_text or (summary_data.get('message_text') if summary_data else None),
                         'source': 'automated',
                         'alert_label': _alert_label,
                     }
@@ -390,6 +391,7 @@ def _build_manual_message_entries(
                 'alert_url': url_for('eas.manual_eas_print', event_id=event.id),
                 'alert_identifier': event.identifier,
                 'eom_url': eom_url,
+                'message_text': event.message_text,
                 'source': 'manual',
                 'alert_label': 'View Activation',
             }

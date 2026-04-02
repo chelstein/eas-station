@@ -176,6 +176,165 @@ def register_message_routes(bp, logger) -> None:
         )
 
 
+    @bp.route('/messages/<int:message_id>/resend', methods=['POST'])
+    def resend_eas_message(message_id: int):
+        """Re-broadcast a previously generated EAS message.
+
+        Replays the stored composite audio through the configured audio player
+        and activates GPIO relays, exactly as if the alert were being sent for
+        the first time.  The original EASMessage record is not modified; a new
+        SystemLog entry is written instead.
+        """
+        import os
+        import subprocess
+        import tempfile
+
+        from app_utils.eas import set_broadcast_active, clear_broadcast_active
+        from app_utils.gpio import GPIOController, GPIOActivationType
+        from app_utils.gpio_behavior import GPIOBehaviorManager, load_gpio_behavior_matrix_from_db
+        from app_core.models import GPIOConfig
+
+        message = EASMessage.query.get_or_404(message_id)
+
+        if not message.audio_data:
+            return jsonify({'error': 'No audio data stored for this message — cannot resend.'}), 422
+
+        audio_player_cmd_raw = current_app.config.get('AUDIO_PLAYER_CMD')
+        if isinstance(audio_player_cmd_raw, str):
+            audio_player_cmd = audio_player_cmd_raw.split() if audio_player_cmd_raw.strip() else None
+        elif isinstance(audio_player_cmd_raw, list):
+            audio_player_cmd = audio_player_cmd_raw or None
+        else:
+            audio_player_cmd = None
+
+        metadata = message.metadata_payload or {}
+        event_code = metadata.get('event_code') or ''
+        playback_duration = metadata.get('playback_duration_seconds') or metadata.get('duration_seconds') or 60.0
+
+        from app_utils.event_codes import EVENT_CODE_REGISTRY as _ECR
+        _ei = _ECR.get(event_code, {})
+        _elabel = (_ei.get('name', event_code) if isinstance(_ei, dict) else event_code) or 'EAS Alert'
+
+        gpio_controller = None
+        gpio_behavior_manager = None
+        activated_any = False
+        manager_handled = False
+        tmp_file = None
+        audio_played = False
+
+        try:
+            gpio_configs = GPIOConfig.query.filter_by(enabled=True).all()
+            if gpio_configs:
+                try:
+                    gpio_logger = logger.getChild('gpio')
+                    controller = GPIOController(db_session=db.session, logger=gpio_logger)
+                    for cfg in gpio_configs:
+                        controller.add_pin(cfg)
+                    gpio_controller = controller
+                    behavior_matrix = load_gpio_behavior_matrix_from_db(logger)
+                    gpio_behavior_manager = GPIOBehaviorManager(
+                        controller=controller,
+                        pin_configs=gpio_configs,
+                        behavior_matrix=behavior_matrix,
+                        logger=gpio_logger.getChild('behavior'),
+                    )
+                    controller.behavior_manager = gpio_behavior_manager
+                except Exception as exc:
+                    logger.warning('Resend GPIO init failed: %s', exc)
+
+            tmp_file = tempfile.NamedTemporaryFile(suffix='.wav', prefix='eas_resend_', delete=False)
+            tmp_file.write(message.audio_data)
+            tmp_file.flush()
+            tmp_path = tmp_file.name
+            tmp_file.close()
+
+            # Activate GPIO
+            if gpio_controller:
+                try:
+                    reason = f'Resend of EASMessage #{message_id} ({event_code or "unknown"})'
+                    if gpio_behavior_manager:
+                        gpio_behavior_manager.trigger_incoming_alert(
+                            alert_id=str(message_id), event_code=event_code,
+                        )
+                        manager_handled = gpio_behavior_manager.start_alert(
+                            alert_id=str(message_id), event_code=event_code, reason=reason,
+                        )
+                        activated_any = manager_handled
+                    if not activated_any:
+                        results = gpio_controller.activate_all(
+                            activation_type=GPIOActivationType.AUTOMATIC,
+                            operator=getattr(g.current_user, 'username', None),
+                            alert_id=str(message_id),
+                            reason=reason,
+                        )
+                        activated_any = any(results.values())
+                except Exception as exc:
+                    logger.warning('Resend GPIO activation failed: %s', exc)
+
+            set_broadcast_active(
+                event_code=event_code,
+                label=_elabel,
+                duration_seconds=playback_duration,
+                source='resend',
+            )
+
+            audio_played = False
+            if audio_player_cmd:
+                try:
+                    command = list(audio_player_cmd) + [tmp_path]
+                    subprocess.run(command, check=False, timeout=float(playback_duration) + 30)
+                    audio_played = True
+                except subprocess.TimeoutExpired:
+                    logger.warning('Resend audio playback timed out for message %s', message_id)
+                except Exception as exc:
+                    logger.warning('Resend audio playback failed: %s', exc)
+
+        finally:
+            clear_broadcast_active()
+            if gpio_controller and activated_any:
+                try:
+                    if manager_handled and gpio_behavior_manager:
+                        gpio_behavior_manager.end_alert(
+                            alert_id=str(message_id), event_code=event_code,
+                        )
+                    else:
+                        gpio_controller.deactivate_all()
+                except Exception as exc:
+                    logger.warning('Resend GPIO release failed: %s', exc)
+            if tmp_file is not None:
+                try:
+                    os.unlink(tmp_file.name)
+                except OSError:
+                    pass
+
+        try:
+            db.session.add(
+                SystemLog(
+                    level='INFO',
+                    message='EAS message resent',
+                    module='eas',
+                    details={
+                        'message_id': message_id,
+                        'event_code': event_code,
+                        'gpio_activated': activated_any,
+                        'audio_played': audio_played if audio_player_cmd else None,
+                        'resent_by': getattr(g.current_user, 'username', None),
+                    },
+                )
+            )
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
+        return jsonify({
+            'message': f'EAS message #{message_id} resent.',
+            'id': message_id,
+            'event_code': event_code,
+            'gpio_activated': activated_any,
+            'audio_played': audio_played if audio_player_cmd else False,
+        })
+
+
 def _static_text_url(filename: Optional[str]) -> Optional[str]:
     if not filename:
         return None
