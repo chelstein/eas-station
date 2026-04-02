@@ -558,7 +558,7 @@ def register(app: Flask, logger) -> None:
                 GPIOBehavior.FLASH.value: "Blink the pin rapidly at the start of the alert to drive strobes.",
                 GPIOBehavior.FIVE_SECONDS.value: "Pulse the pin for five seconds when playout begins.",
                 GPIOBehavior.INCOMING_ALERT.value: "Pulse when a new alert is ingested or queued.",
-                GPIOBehavior.FORWARDING_ALERT.value: "Pulse when an alert is forwarded from monitoring inputs.",
+                GPIOBehavior.FORWARDING_ALERT.value: "Activate for the full duration of any forwarded broadcast (relay from monitoring inputs).",
             }
             behavior_options = [
                 {

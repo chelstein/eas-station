@@ -57,9 +57,11 @@ from app_utils.eas import (
     PRIMARY_ORIGINATORS,
     SAME_HEADER_FIELD_DESCRIPTIONS,
     build_same_header,
+    clear_broadcast_active,
     describe_same_header,
     manual_default_same_codes,
     samples_to_wav_bytes,
+    set_broadcast_active,
     truncate_wav_to_max_seconds,
 )
 from app_utils.gpio import (
@@ -1281,6 +1283,17 @@ def register_workflow_routes(bp, logger, eas_config) -> None:
                     workflow_logger.info(
                         'Playing manual EAS audio: %s', ' '.join(command),
                     )
+                    from app_utils.event_codes import EVENT_CODE_REGISTRY as _ECR
+                    _ei = _ECR.get(event_code or '', {})
+                    _elabel = (
+                        _ei.get('name', event_code) if isinstance(_ei, dict) else event_code
+                    ) or 'EAS Alert'
+                    set_broadcast_active(
+                        event_code=event_code or '',
+                        label=_elabel,
+                        duration_seconds=playback_duration,
+                        source='manual',
+                    )
                     subprocess.run(command, check=False, timeout=max_activation_seconds + 10)
                     send_result['audio_played'] = True
                 except subprocess.TimeoutExpired:
@@ -1291,6 +1304,8 @@ def register_workflow_routes(bp, logger, eas_config) -> None:
                     workflow_logger.warning(
                         'Audio playback failed: %s', exc,
                     )
+                finally:
+                    clear_broadcast_active()
             else:
                 workflow_logger.info(
                     'No audio player configured; skipping playback for '

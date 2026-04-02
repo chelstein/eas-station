@@ -69,6 +69,67 @@ def _get_oled_enabled_status():
         return False
 
 
+_BROADCAST_STATE_KEY = 'eas:broadcast_active'
+
+
+def set_broadcast_active(
+    event_code: str,
+    label: str,
+    duration_seconds: float,
+    source: str = 'manual',
+) -> None:
+    """Record in Redis that an EAS broadcast is in progress.
+
+    Called just before audio playback begins so all connected clients can
+    display a live countdown timer regardless of which page they are on.
+    """
+    try:
+        from app_core.redis_client import get_redis_client
+        client = get_redis_client()
+        if client is None:
+            return
+        payload = json.dumps({
+            'active': True,
+            'start_ts': time.time(),
+            'duration_seconds': float(duration_seconds),
+            'event_code': event_code or '',
+            'label': label or event_code or 'EAS Alert',
+            'source': source,
+        })
+        # TTL = duration + 60 s safety margin so stale entries self-expire
+        ttl = max(60, int(duration_seconds) + 60)
+        client.set(_BROADCAST_STATE_KEY, payload, ex=ttl)
+    except Exception:
+        pass
+
+
+def clear_broadcast_active() -> None:
+    """Remove the active broadcast marker from Redis once playback ends."""
+    try:
+        from app_core.redis_client import get_redis_client
+        client = get_redis_client()
+        if client is None:
+            return
+        client.delete(_BROADCAST_STATE_KEY)
+    except Exception:
+        pass
+
+
+def get_broadcast_state() -> dict:
+    """Return current broadcast state dict, or ``{'active': False}`` if idle."""
+    try:
+        from app_core.redis_client import get_redis_client
+        client = get_redis_client()
+        if client is None:
+            return {'active': False}
+        raw = client.get(_BROADCAST_STATE_KEY)
+        if raw is None:
+            return {'active': False}
+        return json.loads(raw)
+    except Exception:
+        return {'active': False}
+
+
 MANUAL_FIPS_ENV_TOKENS = {'ALL', 'ANY', 'US', 'USA', '*'}
 
 
@@ -2441,19 +2502,16 @@ class EASBroadcaster:
         )
 
         alert_identifier = getattr(alert, 'identifier', None) or payload.get('identifier')
+        forwarding_decision = str(payload.get('forwarding_decision', '') or '').lower()
+        is_forwarded = forwarding_decision == 'forwarded' or bool(payload.get('forwarded', False))
         behavior_manager = self.gpio_behavior_manager
         if behavior_manager:
             behavior_manager.trigger_incoming_alert(
                 alert_id=str(alert_identifier) if alert_identifier else None,
                 event_code=event_code,
             )
-
-            forwarding_decision = str(payload.get('forwarding_decision', '') or '').lower()
-            if forwarding_decision == 'forwarded' or bool(payload.get('forwarded', False)):
-                behavior_manager.trigger_forwarding_alert(
-                    alert_id=str(alert_identifier) if alert_identifier else None,
-                    event_code=event_code,
-                )
+            # FORWARDING_ALERT pins are held for the full broadcast duration via
+            # start_alert(forwarded=True) below instead of a short pulse here.
 
         # Create and persist database record BEFORE queue/immediate mode split
         # This ensures both modes have consistent database tracking
@@ -2523,6 +2581,7 @@ class EASBroadcaster:
                         alert_id=str(alert_identifier) if alert_identifier else None,
                         event_code=event_code,
                         reason=activation_reason,
+                        forwarded=is_forwarded,
                     )
                     activated_any = activated_any or manager_handled
 
@@ -2560,18 +2619,35 @@ class EASBroadcaster:
             except Exception as _inj_exc:
                 self.logger.warning("EAS stream injection failed (non-fatal): %s", _inj_exc)
 
+            # Publish broadcast state to Redis so all connected browser clients
+            # can display the global countdown timer overlay.
+            _duration_hint = _wav_duration_seconds(audio_bytes) if audio_bytes else 0.0
+            _event_info = EVENT_CODE_REGISTRY.get(event_code or '', {})
+            _event_label = (
+                _event_info.get('name', event_code) if isinstance(_event_info, dict) else event_code
+            ) or 'EAS Alert'
+            _bcast_source = 'forwarded' if is_forwarded else 'auto'
+            set_broadcast_active(
+                event_code=event_code or '',
+                label=_event_label,
+                duration_seconds=_duration_hint,
+                source=_bcast_source,
+            )
+
             # audio_bytes contains the complete broadcast sequence:
             # SAME header (3x) → attention tone → TTS narration → EOM.
             # All segments are in a single uninterrupted audio file, so no
             # gap can appear between the narration and the EOM burst.
             self._play_audio_or_bytes(audio_path, audio_bytes)
         finally:
+            clear_broadcast_active()
             if controller and activated_any:
                 try:  # pragma: no cover - hardware specific
                     if manager_handled and behavior_manager:
                         behavior_manager.end_alert(
                             alert_id=str(alert_identifier) if alert_identifier else None,
                             event_code=event_code,
+                            forwarded=is_forwarded,
                         )
                     elif activated_any:
                         controller.deactivate_all()
@@ -2601,5 +2677,8 @@ __all__ = [
     'manual_default_same_codes',
     'convert_audio_to_samples',
     'PRIMARY_ORIGINATORS',
+    'set_broadcast_active',
+    'clear_broadcast_active',
+    'get_broadcast_state',
 ]
 

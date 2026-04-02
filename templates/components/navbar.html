@@ -58,6 +58,19 @@
                 <span class="ws-indicator__dot" id="ws-indicator-dot"></span>
                 <span class="ws-indicator__text" id="ws-indicator-text">Live</span>
             </div>
+
+            <!-- Stack Light Status Widget
+                 Red  = On-air / broadcast active
+                 Amber = System degraded / warning
+                 Green = Healthy & monitoring active -->
+            <div class="sl-tower" id="slTower" aria-label="Station status light" role="status">
+                <div class="sl-housing">
+                    <div class="sl-lens sl-lens--red"   id="slRed"   title="On-air"></div>
+                    <div class="sl-lens sl-lens--amber" id="slAmber" title="Warning"></div>
+                    <div class="sl-lens sl-lens--green" id="slGreen" title="Healthy"></div>
+                </div>
+                <div class="sl-base"></div>
+            </div>
         </div>
 
         <!-- Mobile Toggle -->
@@ -446,6 +459,119 @@
     </div>
 </nav>
 
+<style>
+/* ── Stack-light tower ─────────────────────────────────────── */
+.sl-tower {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    margin-left: 0.5rem;
+    user-select: none;
+    flex-shrink: 0;
+}
+
+.sl-housing {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    background: linear-gradient(160deg, #2a2a2e 0%, #18181c 60%, #111114 100%);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 6px 6px 4px 4px;
+    padding: 5px 4px;
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.07),
+        0 2px 6px rgba(0,0,0,0.5);
+    position: relative;
+}
+
+/* Reflective strip on housing */
+.sl-housing::before {
+    content: '';
+    position: absolute;
+    top: 4px; left: 5px;
+    width: 3px; bottom: 4px;
+    border-radius: 2px;
+    background: linear-gradient(to bottom,
+        rgba(255,255,255,0.12) 0%,
+        rgba(255,255,255,0.04) 50%,
+        transparent 100%);
+    pointer-events: none;
+}
+
+.sl-base {
+    width: 18px;
+    height: 5px;
+    background: linear-gradient(to bottom, #2c2c30, #1a1a1e);
+    border-radius: 0 0 3px 3px;
+    border: 1px solid rgba(255,255,255,0.06);
+    border-top: none;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+}
+
+.sl-lens {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    position: relative;
+    transition: box-shadow 0.25s ease, background 0.25s ease;
+    /* Inactive state — dark tinted glass look */
+    background: radial-gradient(circle at 35% 30%, rgba(255,255,255,0.12), transparent 60%),
+                rgba(0,0,0,0.55);
+    border: 1px solid rgba(0,0,0,0.4);
+}
+
+/* Specular highlight on each lens */
+.sl-lens::before {
+    content: '';
+    position: absolute;
+    top: 2px; left: 3px;
+    width: 5px; height: 3px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.35);
+    pointer-events: none;
+}
+
+/* ── Active states ──────────────────────────────────────────── */
+.sl-lens--red.sl-on {
+    background: radial-gradient(circle at 35% 30%, #ff9999, #ff2222 55%, #aa0000 100%);
+    box-shadow:
+        0 0 6px 2px rgba(255, 40, 40, 0.8),
+        0 0 14px 4px rgba(255, 0, 0, 0.45),
+        inset 0 1px 0 rgba(255,255,255,0.25);
+    border-color: rgba(255,80,80,0.5);
+}
+
+.sl-lens--amber.sl-on {
+    background: radial-gradient(circle at 35% 30%, #ffe599, #ffb300 55%, #b37700 100%);
+    box-shadow:
+        0 0 6px 2px rgba(255, 180, 0, 0.85),
+        0 0 14px 4px rgba(255, 140, 0, 0.45),
+        inset 0 1px 0 rgba(255,255,255,0.3);
+    border-color: rgba(255,180,0,0.5);
+}
+
+.sl-lens--green.sl-on {
+    background: radial-gradient(circle at 35% 30%, #aaffaa, #22cc44 55%, #0a7a22 100%);
+    box-shadow:
+        0 0 6px 2px rgba(30, 210, 70, 0.8),
+        0 0 14px 4px rgba(0, 180, 50, 0.45),
+        inset 0 1px 0 rgba(255,255,255,0.25);
+    border-color: rgba(60,220,80,0.5);
+}
+
+/* Flash animation for active broadcast (red) */
+@keyframes sl-flash {
+    0%, 49% { opacity: 1; }
+    50%, 100% { opacity: 0.15; }
+}
+
+.sl-lens--red.sl-flash {
+    animation: sl-flash 0.6s step-end infinite;
+}
+</style>
+
 <!-- System Health Update Script -->
 <script>
 // Update system health indicator
@@ -536,4 +662,78 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     }, 1000);
 });
+
+// ── Stack-light controller ────────────────────────────────────────────────────
+(function () {
+    'use strict';
+
+    var _healthStatus  = 'unknown';  // 'healthy' | 'degraded' | 'critical' | 'unknown'
+    var _broadcastActive = false;
+
+    function _setLight(id, on, flash) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        el.classList.toggle('sl-on',    !!on);
+        el.classList.toggle('sl-flash', !!flash);
+    }
+
+    function _render() {
+        var broadcasting = _broadcastActive;
+        var healthy   = _healthStatus === 'healthy';
+        var degraded  = _healthStatus === 'degraded' || _healthStatus === 'critical';
+
+        // Red: on when broadcasting, flashing for emphasis
+        _setLight('slRed',   broadcasting, broadcasting);
+
+        // Amber: on when health is degraded/critical
+        _setLight('slAmber', degraded, false);
+
+        // Green: on when healthy (regardless of broadcast — station is alive)
+        _setLight('slGreen', healthy, false);
+
+        // Update tower tooltip
+        var tower = document.getElementById('slTower');
+        if (tower) {
+            var tip = [];
+            if (broadcasting) tip.push('ON-AIR');
+            if (degraded)     tip.push('System warning');
+            if (healthy)      tip.push('Healthy');
+            tower.title = tip.length ? tip.join(' · ') : 'Status unknown';
+        }
+    }
+
+    // Subscribe to broadcast state (1 Hz)
+    if (window.EASWebSocket && window.EASWebSocket.subscribe) {
+        window.EASWebSocket.subscribe('broadcast_state_update', function (data) {
+            _broadcastActive = !!(data && data.active);
+            _render();
+        });
+
+        // Subscribe to system health (60 s)
+        window.EASWebSocket.subscribe('system_health_update', function (data) {
+            _healthStatus = (data && data.status) ? data.status : 'unknown';
+            _render();
+        });
+    }
+
+    // Seed health from the on-load fetch that already fires above
+    var _origUpdate = window.updateSystemHealth;
+    window.updateSystemHealth = function (status, message) {
+        if (_origUpdate) _origUpdate(status, message);
+        // Map health indicator classes to our internal state
+        if (status === 'good' || status === 'healthy') {
+            _healthStatus = 'healthy';
+        } else if (status === 'warning' || status === 'degraded') {
+            _healthStatus = 'degraded';
+        } else if (status === 'danger' || status === 'critical') {
+            _healthStatus = 'critical';
+        } else {
+            _healthStatus = 'unknown';
+        }
+        _render();
+    };
+
+    // Initial render with unknown state — green lights once health resolves
+    _render();
+}());
 </script>

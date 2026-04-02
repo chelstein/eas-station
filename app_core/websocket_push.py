@@ -142,6 +142,7 @@ LED_STATUS_INTERVAL = 30.0         # LED status
 ANALYTICS_INTERVAL = 30.0          # Analytics dashboard
 RADIO_STATUS_INTERVAL = 15.0       # Radio diagnostics
 LOGS_UPDATE_INTERVAL = 10.0        # Log viewer updates
+BROADCAST_STATE_INTERVAL = 1.0     # Airchain broadcast state (1Hz during broadcast)
 
 
 def start_websocket_push(app: 'Flask', socketio: 'SocketIO') -> None:
@@ -201,6 +202,7 @@ def _push_worker(app: 'Flask', socketio: 'SocketIO') -> None:
     last_analytics_emit = 0.0
     last_radio_status_emit = 0.0
     last_logs_emit = 0.0
+    last_broadcast_state_emit = 0.0
 
     with app.app_context():
         while not _stop_event.is_set():
@@ -337,6 +339,17 @@ def _push_worker(app: 'Flask', socketio: 'SocketIO') -> None:
                     last_logs_emit = now
                 except Exception as e:
                     logger.debug(f"Error emitting logs_update: {e}")
+
+            # ================================================================
+            # BROADCAST STATE UPDATE (1Hz)
+            # Airchain active state for the global countdown timer overlay.
+            # ================================================================
+            if now - last_broadcast_state_emit >= BROADCAST_STATE_INTERVAL:
+                try:
+                    _emit_broadcast_state_update(socketio)
+                    last_broadcast_state_emit = now
+                except Exception as e:
+                    logger.debug(f"Error emitting broadcast_state_update: {e}")
 
             # Sleep for 250ms (4Hz base loop) — low CPU, smooth VU meters
             _stop_event.wait(AUDIO_MONITORING_INTERVAL)
@@ -751,3 +764,21 @@ def _emit_logs_update(app: 'Flask', socketio: 'SocketIO') -> None:
         })
     except Exception as e:
         logger.debug(f"Error fetching logs data: {e}")
+
+
+def _emit_broadcast_state_update(socketio: 'SocketIO') -> None:
+    """Emit current airchain broadcast state to all connected clients.
+
+    Reads the ``eas:broadcast_active`` Redis key written by
+    :func:`~app_utils.eas.set_broadcast_active` and pushes it so every page
+    can show or hide the global countdown timer overlay.
+    """
+    try:
+        from app_utils.eas import get_broadcast_state
+        state = get_broadcast_state()
+        _safe_emit(socketio, 'broadcast_state_update', {
+            **state,
+            'timestamp': time.time(),
+        })
+    except Exception as e:
+        logger.debug(f"Error fetching broadcast state: {e}")
