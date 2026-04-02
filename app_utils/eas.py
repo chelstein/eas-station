@@ -218,6 +218,7 @@ def load_eas_config(base_path: Optional[str] = None, db_session=None) -> Dict[st
     db_broadcast_enabled = None
     db_sample_rate = None
     db_attention_tone_seconds = None
+    db_max_activation_seconds = None
     db_audio_player = None
     db_forwarded_event_codes: List[str] = []
     try:
@@ -229,6 +230,7 @@ def load_eas_config(base_path: Optional[str] = None, db_session=None) -> Dict[st
             db_broadcast_enabled = eas_settings.broadcast_enabled
             db_sample_rate = eas_settings.sample_rate
             db_attention_tone_seconds = eas_settings.attention_tone_seconds
+            db_max_activation_seconds = eas_settings.max_activation_seconds
             db_audio_player = eas_settings.audio_player
             db_forwarded_event_codes = list(eas_settings.forwarded_event_codes or [])
             load_logger.info(
@@ -251,6 +253,7 @@ def load_eas_config(base_path: Optional[str] = None, db_session=None) -> Dict[st
                 db_broadcast_enabled = eas_settings.broadcast_enabled
                 db_sample_rate = eas_settings.sample_rate
                 db_attention_tone_seconds = eas_settings.attention_tone_seconds
+                db_max_activation_seconds = eas_settings.max_activation_seconds
                 db_audio_player = eas_settings.audio_player
                 db_forwarded_event_codes = list(eas_settings.forwarded_event_codes or [])
                 load_logger.info(
@@ -283,6 +286,10 @@ def load_eas_config(base_path: Optional[str] = None, db_session=None) -> Dict[st
         'attention_tone_seconds': float(
             os.getenv('EAS_ATTENTION_TONE_SECONDS')
             or (db_attention_tone_seconds if db_attention_tone_seconds is not None else 8)
+        ),
+        'max_activation_seconds': int(
+            os.getenv('EAS_MAX_ACTIVATION_SECONDS')
+            or (db_max_activation_seconds if db_max_activation_seconds is not None else 300)
         ),
         'gpio_pin_configs': [
             {
@@ -1312,6 +1319,71 @@ def samples_to_wav_bytes(samples: Sequence[int], sample_rate: int) -> bytes:
         wav.writeframes(frames)
     buffer.seek(0)
     return buffer.getvalue()
+
+
+def _wav_duration_seconds(wav_bytes: bytes) -> float:
+    """Return the duration of a WAV file in seconds, or 0.0 on error."""
+    try:
+        with io.BytesIO(wav_bytes) as bio:
+            with wave.open(bio, 'rb') as w:
+                return w.getnframes() / w.getframerate()
+    except Exception:
+        return 0.0
+
+
+def truncate_wav_to_max_seconds(
+    composite_wav: bytes,
+    eom_wav: Optional[bytes],
+    max_seconds: float,
+) -> bytes:
+    """Enforce the hard activation time limit on composite EAS audio.
+
+    If *composite_wav* is within *max_seconds* it is returned unchanged.
+    Otherwise the audio is trimmed so that the total duration equals
+    *max_seconds*, with the EOM segment (*eom_wav*) preserved at the end.
+    This mirrors DASDEC behaviour: the narration is cut short when it would
+    exceed the configured hard limit, and the EOM plays immediately after.
+    """
+    composite_duration = _wav_duration_seconds(composite_wav)
+    if composite_duration <= max_seconds:
+        return composite_wav
+
+    # Read composite WAV parameters
+    with io.BytesIO(composite_wav) as bio:
+        with wave.open(bio, 'rb') as w:
+            channels = w.getnchannels()
+            sampwidth = w.getsampwidth()
+            framerate = w.getframerate()
+
+    # Determine how many frames to keep from the composite (before EOM)
+    eom_duration = _wav_duration_seconds(eom_wav) if eom_wav else 0.0
+    pre_eom_limit = max(0.0, max_seconds - eom_duration)
+    max_pre_eom_frames = int(pre_eom_limit * framerate)
+
+    with io.BytesIO(composite_wav) as bio:
+        with wave.open(bio, 'rb') as w:
+            truncated_frames = w.readframes(max_pre_eom_frames)
+
+    # Append the EOM frames from the isolated EOM WAV
+    eom_raw_frames = b''
+    if eom_wav:
+        try:
+            with io.BytesIO(eom_wav) as bio:
+                with wave.open(bio, 'rb') as w:
+                    eom_raw_frames = w.readframes(w.getnframes())
+        except Exception:
+            pass
+
+    output = io.BytesIO()
+    with wave.open(output, 'w') as w:
+        w.setnchannels(channels)
+        w.setsampwidth(sampwidth)
+        w.setframerate(framerate)
+        w.writeframes(truncated_frames)
+        if eom_raw_frames:
+            w.writeframes(eom_raw_frames)
+    output.seek(0)
+    return output.getvalue()
 
 
 def _run_command(command: Sequence[str], logger) -> None:

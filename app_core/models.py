@@ -1270,6 +1270,10 @@ class EASSettings(db.Model):
     attention_tone_seconds = db.Column(db.Integer, nullable=False, default=8)
     # Duration of the attention tone in seconds (1-25)
 
+    max_activation_seconds = db.Column(db.Integer, nullable=False, default=300)
+    # Hard limit for total EAS activation duration in seconds (DASDEC-style cap).
+    # After this duration the EOM is forced and playback stops. Default: 300.
+
     sample_rate = db.Column(db.Integer, nullable=False, default=16000)
     # Audio sample rate for GENERATED EAS alerts: 8000, 16000, 22050, 44100, 48000
     # NOTE: 16kHz is optimal for EAS - lower CPU overhead, adequate quality for SAME tones/voice
@@ -1306,6 +1310,7 @@ class EASSettings(db.Model):
             "station_id": self.station_id,
             "output_dir": self.output_dir,
             "attention_tone_seconds": self.attention_tone_seconds,
+            "max_activation_seconds": self.max_activation_seconds,
             "sample_rate": self.sample_rate,
             "audio_player": self.audio_player,
             "authorized_fips_codes": list(self.authorized_fips_codes or []),

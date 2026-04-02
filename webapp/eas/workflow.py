@@ -50,6 +50,7 @@ from werkzeug.utils import secure_filename
 from app_utils.eas import (
     EASAudioGenerator,
     _convert_audio_to_samples,
+    _wav_duration_seconds,
     load_eas_config,
     ORIGINATOR_DESCRIPTIONS,
     P_DIGIT_MEANINGS,
@@ -59,6 +60,7 @@ from app_utils.eas import (
     describe_same_header,
     manual_default_same_codes,
     samples_to_wav_bytes,
+    truncate_wav_to_max_seconds,
 )
 from app_utils.gpio import (
     GPIOActivationType,
@@ -143,6 +145,7 @@ def register_workflow_routes(bp, logger, eas_config) -> None:
             eas_station_id=local_auth.station_id if local_auth else eas_config.get('station_id', 'EASNODES'),
             eas_attention_seconds=eas_config.get('attention_tone_seconds', 8),
             eas_sample_rate=eas_config.get('sample_rate', 16000),
+            eas_max_activation_seconds=int(eas_config.get('max_activation_seconds', 300)),
             eas_default_same_codes=manual_same_defaults,
             eas_header_fields=SAME_HEADER_FIELD_DESCRIPTIONS,
             eas_p_digit_meanings=P_DIGIT_MEANINGS,
@@ -1167,6 +1170,20 @@ def register_workflow_routes(bp, logger, eas_config) -> None:
         fresh_config = load_eas_config(current_app.root_path)
         audio_player_cmd = fresh_config.get('audio_player_cmd')
 
+        # Enforce the hard activation time limit (DASDEC-style cap).
+        max_activation_seconds = int(fresh_config.get('max_activation_seconds', 300) or 300)
+        original_duration = _wav_duration_seconds(audio_data)
+        was_truncated = False
+        if original_duration > max_activation_seconds:
+            eom_wav = activation.eom_audio_data
+            audio_data = truncate_wav_to_max_seconds(audio_data, eom_wav, max_activation_seconds)
+            was_truncated = True
+            workflow_logger.info(
+                'Activation %s audio truncated from %.1fs to %ds hard limit',
+                event_id, original_duration, max_activation_seconds,
+            )
+        playback_duration = _wav_duration_seconds(audio_data)
+
         # Initialize GPIO controller (same pattern as EASBroadcaster)
         from app_utils.eas import _get_oled_enabled_status
 
@@ -1207,6 +1224,9 @@ def register_workflow_routes(bp, logger, eas_config) -> None:
             'identifier': activation.identifier,
             'audio_played': False,
             'gpio_activated': False,
+            'playback_duration_seconds': round(playback_duration, 2),
+            'max_activation_seconds': max_activation_seconds,
+            'was_truncated': was_truncated,
         }
 
         try:
@@ -1261,7 +1281,7 @@ def register_workflow_routes(bp, logger, eas_config) -> None:
                     workflow_logger.info(
                         'Playing manual EAS audio: %s', ' '.join(command),
                     )
-                    subprocess.run(command, check=False, timeout=300)
+                    subprocess.run(command, check=False, timeout=max_activation_seconds + 10)
                     send_result['audio_played'] = True
                 except subprocess.TimeoutExpired:
                     workflow_logger.warning(
