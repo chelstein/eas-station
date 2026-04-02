@@ -24,6 +24,9 @@ import smtplib
 from email.message import EmailMessage
 from typing import Any, Dict, List, Optional, Tuple
 
+from app_utils.event_codes import EVENT_CODE_REGISTRY
+from app_utils.fips_codes import get_same_lookup
+
 logger = logging.getLogger(__name__)
 
 
@@ -91,6 +94,16 @@ def send_eas_alert_email(
     timestamp = alert_info.get("timestamp", "")
     location_codes = alert_info.get("location_codes", [])
 
+    event_entry = EVENT_CODE_REGISTRY.get(event_code)
+    event_name = event_entry.get("name") if event_entry else None
+    event_label = f"{event_code} - {event_name}" if event_name else event_code
+
+    fips_lookup = get_same_lookup()
+    location_labels = []
+    for code in location_codes:
+        name = fips_lookup.get(code)
+        location_labels.append(name if name else code)
+
     sender = smtp_username or "alerts@localhost"
 
     msg = EmailMessage()
@@ -101,13 +114,13 @@ def send_eas_alert_email(
     body_lines = [
         "EAS Station Alert Notification",
         "=" * 40,
-        f"Event:       {event_code}",
+        f"Event:       {event_label}",
         f"Headline:    {headline}",
     ]
     if same_header:
         body_lines.append(f"SAME Header: {same_header}")
-    if location_codes:
-        body_lines.append(f"Locations:   {', '.join(location_codes)}")
+    if location_labels:
+        body_lines.append(f"Locations:   {', '.join(location_labels)}")
     if timestamp:
         body_lines.append(f"Time:        {timestamp}")
     body_lines.append(f"Source:      {source}")
@@ -124,6 +137,11 @@ def send_eas_alert_email(
             subtype="wav",
             filename=filename,
         )
+        # Python only sets filename in Content-Disposition; also set name in
+        # Content-Type so iOS Mail and similar clients display it correctly.
+        for part in msg.iter_attachments():
+            if part.get_content_type() == "audio/wav":
+                part.set_param("name", filename, header="Content-Type")
 
     try:
         with build_smtp_connection(smtp_host, smtp_port, smtp_security) as smtp:
