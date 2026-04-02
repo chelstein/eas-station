@@ -166,12 +166,21 @@ def _logger():
 
 
 def get_active_alerts_query():
-    """Return a query for active (non-expired) alerts."""
+    """Return a query for active (non-expired, non-superseded) alerts.
+
+    Superseded alerts are excluded because a newer VTEC product (CON, EXT,
+    CAN, EXP, UPG, …) has already replaced them.  Consumers that need the
+    full event chain should query CAPAlert directly.
+    """
 
     now = utc_now()
     return CAPAlert.query.filter(
         or_(CAPAlert.expires.is_(None), CAPAlert.expires > now)
-    ).filter(CAPAlert.status != "Expired")
+    ).filter(
+        CAPAlert.status != "Expired"
+    ).filter(
+        CAPAlert.superseded_by_id.is_(None)
+    )
 
 
 def get_expired_alerts_query():
