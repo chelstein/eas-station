@@ -208,85 +208,8 @@
         padding: 0.5rem 2rem;
     }
 
-    /* ---- EAS Broadcast Active Timer ---- */
-    .broadcast-timer-overlay {
-        position: fixed;
-        bottom: 1.5rem;
-        right: 1.5rem;
-        z-index: 9990;
-        width: 320px;
-        pointer-events: none;
-        animation: broadcastSlideIn 0.3s ease-out;
-    }
-
-    @keyframes broadcastSlideIn {
-        from { opacity: 0; transform: translateY(20px); }
-        to   { opacity: 1; transform: translateY(0); }
-    }
-
-    .broadcast-timer-inner {
-        background: #0a0a14;
-        border: 2px solid #ff4d4d;
-        border-radius: 12px;
-        padding: 1rem 1.25rem;
-        color: #fff;
-        box-shadow: 0 0 24px rgba(255, 77, 77, 0.4);
-    }
-
-    .broadcast-timer-header {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        margin-bottom: 0.5rem;
-    }
-
-    .broadcast-live-dot {
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-        background: #ff4d4d;
-        animation: broadcastPulse 1s infinite;
-        flex-shrink: 0;
-    }
-
-    @keyframes broadcastPulse {
-        0%, 100% { opacity: 1; }
-        50%       { opacity: 0.3; }
-    }
-
-    .broadcast-live-label {
-        font-size: 0.7rem;
-        font-weight: 700;
-        letter-spacing: 0.12em;
-        color: #ff4d4d;
-        text-transform: uppercase;
-    }
-
-    .broadcast-event-name {
-        font-size: 0.85rem;
-        font-weight: 600;
-        margin-bottom: 0.75rem;
-        color: #e0e0e0;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-    .broadcast-timer-bar-wrap {
-        background: rgba(255,255,255,0.1);
-        border-radius: 4px;
-        height: 6px;
-        margin-bottom: 0.4rem;
-        overflow: hidden;
-    }
-
-    .broadcast-timer-bar {
-        height: 100%;
-        background: #ff4d4d;
-        border-radius: 4px;
-        width: 100%;
-        transition: width 1s linear;
-    }
+    /* broadcast-timer-overlay removed — now lives in base.html as the
+       global #globalBroadcastTimer overlay driven by WebSocket state. */
 
     .broadcast-timer-times {
         display: flex;
@@ -683,27 +606,7 @@
         </button>
     </div>
 
-    <!-- EAS Broadcast Active Timer Overlay -->
-    <div id="broadcastTimerOverlay" class="broadcast-timer-overlay" style="display: none;">
-        <div class="broadcast-timer-inner">
-            <div class="broadcast-timer-header">
-                <span class="broadcast-live-dot"></span>
-                <span class="broadcast-live-label">EAS BROADCAST ACTIVE</span>
-            </div>
-            <div class="broadcast-event-name" id="broadcastEventName"></div>
-            <div class="broadcast-timer-bar-wrap">
-                <div class="broadcast-timer-bar" id="broadcastTimerBar"></div>
-            </div>
-            <div class="broadcast-timer-times">
-                <span id="broadcastElapsed">0:00</span>
-                <span id="broadcastTotal"></span>
-            </div>
-            <div class="broadcast-timer-remaining" id="broadcastRemaining">—</div>
-            <div class="broadcast-eom-notice" id="broadcastEomNotice" style="display:none;">
-                <i class="fas fa-flag-checkered me-2"></i>END OF MESSAGE
-            </div>
-        </div>
-    </div>
+    <!-- Global broadcast timer now lives in base.html (#globalBroadcastTimer) -->
 </div>
 {% endblock %}
 
@@ -1753,101 +1656,16 @@ function initiateSendCountdown(activationId, durationHint, labelHint) {
     }, 1000);
 }
 
-/* ---- Broadcast Active Timer ---- */
-
-let _broadcastTimerInterval = null;
-
-function _fmtSeconds(s) {
-    const m = Math.floor(s / 60);
-    const sec = Math.floor(s % 60);
-    return `${m}:${String(sec).padStart(2, '0')}`;
-}
-
-function startBroadcastTimer(durationSeconds, label) {
-    stopBroadcastTimer();
-
-    const overlay  = document.getElementById('broadcastTimerOverlay');
-    const barEl    = document.getElementById('broadcastTimerBar');
-    const elapsedEl  = document.getElementById('broadcastElapsed');
-    const totalEl    = document.getElementById('broadcastTotal');
-    const remainEl   = document.getElementById('broadcastRemaining');
-    const eomNotice  = document.getElementById('broadcastEomNotice');
-    const eventName  = document.getElementById('broadcastEventName');
-    const inner      = overlay.querySelector('.broadcast-timer-inner');
-
-    const maxSecs = MAX_ACTIVATION_SECONDS;
-    const totalSecs = durationSeconds > 0 ? Math.min(durationSeconds, maxSecs) : maxSecs;
-
-    eventName.textContent = label || '';
-    totalEl.textContent = _fmtSeconds(totalSecs);
-    elapsedEl.textContent = '0:00';
-    remainEl.textContent = _fmtSeconds(totalSecs);
-    remainEl.classList.remove('ending');
-    barEl.style.width = '100%';
-    eomNotice.style.display = 'none';
-    inner.style.borderColor = '#ff4d4d';
-    overlay.style.display = 'block';
-
-    const startTime = Date.now();
-
-    _broadcastTimerInterval = setInterval(() => {
-        const elapsed = (Date.now() - startTime) / 1000;
-        const remaining = Math.max(0, totalSecs - elapsed);
-        const pct = Math.max(0, (remaining / totalSecs) * 100);
-
-        elapsedEl.textContent = _fmtSeconds(elapsed);
-        remainEl.textContent = _fmtSeconds(remaining);
-        barEl.style.width = `${pct}%`;
-
-        if (remaining <= 10) {
-            remainEl.classList.add('ending');
-        }
-
-        if (remaining <= 0) {
-            // Timer expired: EOM playing
-            remainEl.textContent = '0:00';
-            eomNotice.style.display = 'block';
-            inner.style.borderColor = '#28a745';
-            clearInterval(_broadcastTimerInterval);
-            _broadcastTimerInterval = null;
-        }
-    }, 250);
-}
-
-function stopBroadcastTimer() {
-    if (_broadcastTimerInterval) {
-        clearInterval(_broadcastTimerInterval);
-        _broadcastTimerInterval = null;
-    }
-    const overlay = document.getElementById('broadcastTimerOverlay');
-    if (overlay) {
-        overlay.style.display = 'none';
-    }
-}
-
 async function executeSend(activationId) {
-    // Start the broadcast timer immediately (optimistic — duration hint from component data)
-    const durationHint = _pendingSendDuration;
-    const labelHint = _pendingSendLabel;
-    if (durationHint !== null) {
-        startBroadcastTimer(durationHint, labelHint);
-    } else {
-        startBroadcastTimer(MAX_ACTIVATION_SECONDS, labelHint);
-    }
-
+    // The global broadcast timer overlay (base.html #globalBroadcastTimer) will
+    // appear automatically within ~1 s once workflow.py sets eas:broadcast_active
+    // in Redis and websocket_push.py emits a broadcast_state_update event.
     try {
         const response = await fetch(`/eas/manual/events/${activationId}/send`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
         });
         const data = await response.json();
-
-        // Update timer to match actual reported duration (if different)
-        if (data.playback_duration_seconds && data.playback_duration_seconds > 0) {
-            // Timer already ran — just stop it cleanly
-        }
-
-        stopBroadcastTimer();
 
         if (!response.ok) {
             throw new Error(data.error || 'Failed to send alert.');
@@ -1870,7 +1688,6 @@ async function executeSend(activationId) {
         setStatus(`Alert sent successfully (${parts.join(', ')}).`, 'success');
         await loadManualActivations();
     } catch (error) {
-        stopBroadcastTimer();
         console.error('Send failed', error);
         setStatus(`Failed to send alert: ${error.message}`, 'error');
     }

@@ -306,5 +306,115 @@
 
     <!-- 3. Page-specific scripts -->
     {% block scripts %}{% endblock %}
+
+    <!-- Global EAS Broadcast Timer Overlay
+         Shown on ALL pages whenever the station is broadcasting (manual or
+         forwarded).  Driven by the broadcast_state_update WebSocket event
+         pushed by websocket_push.py reading the eas:broadcast_active Redis key. -->
+    <div id="globalBroadcastTimer" style="display:none;position:fixed;bottom:1.5rem;right:1.5rem;z-index:9990;width:320px;pointer-events:none;animation:gbcSlideIn .3s ease-out;">
+        <div id="globalBroadcastTimerInner" style="background:#0a0a14;border:2px solid #ff4d4d;border-radius:12px;padding:1rem 1.25rem;color:#fff;box-shadow:0 0 24px rgba(255,77,77,.4);">
+            <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem;">
+                <span style="width:10px;height:10px;border-radius:50%;background:#ff4d4d;animation:gbcPulse 1s infinite;flex-shrink:0;"></span>
+                <span style="font-size:.7rem;font-weight:700;letter-spacing:.12em;color:#ff4d4d;text-transform:uppercase;">EAS BROADCAST ACTIVE</span>
+            </div>
+            <div id="gbcEventName" style="font-size:.85rem;font-weight:600;margin-bottom:.75rem;color:#e0e0e0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
+            <div style="background:rgba(255,255,255,.1);border-radius:4px;height:6px;margin-bottom:.4rem;overflow:hidden;">
+                <div id="gbcBar" style="height:100%;background:#ff4d4d;border-radius:4px;width:100%;transition:width 1s linear;"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:.72rem;color:rgba(255,255,255,.5);margin-bottom:.4rem;">
+                <span id="gbcElapsed">0:00</span>
+                <span id="gbcTotal"></span>
+            </div>
+            <div id="gbcRemaining" style="font-size:2rem;font-weight:700;font-variant-numeric:tabular-nums;text-align:center;letter-spacing:-.02em;color:#fff;">—</div>
+            <div id="gbcEom" style="display:none;margin-top:.5rem;text-align:center;font-size:.8rem;font-weight:700;letter-spacing:.1em;color:#ff4d4d;text-transform:uppercase;">
+                <i class="fas fa-flag-checkered me-2"></i>END OF MESSAGE
+            </div>
+        </div>
+    </div>
+    <style>
+        @keyframes gbcSlideIn { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes gbcPulse   { 0%,100%{opacity:1} 50%{opacity:.3} }
+    </style>
+    <script>
+    (function () {
+        'use strict';
+
+        var _gbcInterval = null;
+        var _gbcStart    = null;
+        var _gbcDuration = 0;
+
+        function _fmt(s) {
+            var m = Math.floor(s / 60);
+            return m + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+        }
+
+        function _startGbc(state) {
+            _stopGbc();
+            var overlay  = document.getElementById('globalBroadcastTimer');
+            var inner    = document.getElementById('globalBroadcastTimerInner');
+            var barEl    = document.getElementById('gbcBar');
+            var elapsedEl = document.getElementById('gbcElapsed');
+            var totalEl   = document.getElementById('gbcTotal');
+            var remEl     = document.getElementById('gbcRemaining');
+            var eomEl     = document.getElementById('gbcEom');
+            var nameEl    = document.getElementById('gbcEventName');
+
+            if (!overlay) return;
+
+            _gbcStart    = state.start_ts * 1000;   // server gives Unix seconds
+            _gbcDuration = state.duration_seconds || 0;
+
+            nameEl.textContent = state.label || state.event_code || 'EAS Alert';
+            totalEl.textContent = _fmt(_gbcDuration);
+            eomEl.style.display = 'none';
+            inner.style.borderColor = '#ff4d4d';
+            barEl.style.background  = '#ff4d4d';
+            overlay.style.display   = 'block';
+
+            _gbcInterval = setInterval(function () {
+                var elapsed   = (Date.now() - _gbcStart) / 1000;
+                var remaining = Math.max(0, _gbcDuration - elapsed);
+                var pct       = _gbcDuration > 0 ? Math.max(0, (remaining / _gbcDuration) * 100) : 0;
+
+                elapsedEl.textContent = _fmt(elapsed);
+                remEl.textContent     = _fmt(remaining);
+                barEl.style.width     = pct + '%';
+                remEl.style.color     = remaining <= 10 ? '#ff4d4d' : '#fff';
+
+                if (remaining <= 0) {
+                    eomEl.style.display    = 'block';
+                    inner.style.borderColor = '#28a745';
+                    barEl.style.background  = '#28a745';
+                    clearInterval(_gbcInterval);
+                    _gbcInterval = null;
+                }
+            }, 250);
+        }
+
+        function _stopGbc() {
+            if (_gbcInterval) { clearInterval(_gbcInterval); _gbcInterval = null; }
+            var overlay = document.getElementById('globalBroadcastTimer');
+            if (overlay) overlay.style.display = 'none';
+        }
+
+        // Subscribe to broadcast_state_update via the shared WebSocket module.
+        // EASWebSocket is guaranteed to exist here because websocket.js loads
+        // before this inline script block.
+        function _handleBroadcastState(state) {
+            if (state && state.active) {
+                // Only (re)start if this is a new broadcast (start_ts shifted)
+                if (_gbcStart === null || Math.abs(_gbcStart - state.start_ts * 1000) > 500) {
+                    _startGbc(state);
+                }
+            } else {
+                _stopGbc();
+            }
+        }
+
+        if (window.EASWebSocket && window.EASWebSocket.subscribe) {
+            window.EASWebSocket.subscribe('broadcast_state_update', _handleBroadcastState);
+        }
+    }());
+    </script>
 </body>
 </html>

@@ -51,6 +51,9 @@
 
         // Log events
         'logs_update': 10000,                 // 10s - log viewer
+
+        // Airchain broadcast state (global countdown timer)
+        'broadcast_state_update': 1000,       // 1s - broadcast active state
     };
 
     // API endpoints for polling fallback

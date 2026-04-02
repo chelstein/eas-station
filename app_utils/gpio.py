@@ -1737,8 +1737,15 @@ class GPIOBehaviorManager:
         alert_id: Optional[str] = None,
         event_code: Optional[str] = None,
         reason: Optional[str] = None,
+        forwarded: bool = False,
     ) -> bool:
         """Begin alert playout behaviors.
+
+        When *forwarded* is ``True`` (alert is being relayed from a monitoring
+        input), pins configured for :attr:`GPIOBehavior.FORWARDING_ALERT` are
+        held HIGH for the full broadcast duration instead of the normal 5-second
+        pulse.  This ensures the relay stays active the entire time the station
+        has control of the airchain.
 
         Returns ``True`` when the manager is actively holding pins and should
         receive a matching :meth:`end_alert` call.
@@ -1750,7 +1757,11 @@ class GPIOBehaviorManager:
         reason = reason or "Automatic alert playout"
         hold_started = False
 
-        for behavior in (GPIOBehavior.DURATION_OF_ALERT, GPIOBehavior.PLAYOUT):
+        hold_behaviors = [GPIOBehavior.DURATION_OF_ALERT, GPIOBehavior.PLAYOUT]
+        if forwarded:
+            hold_behaviors.append(GPIOBehavior.FORWARDING_ALERT)
+
+        for behavior in hold_behaviors:
             for pin in self._pins_for_behavior(behavior):
                 if self._add_hold(pin, behavior, alert_id, event_code, reason):
                     hold_started = True
@@ -1772,6 +1783,7 @@ class GPIOBehaviorManager:
         alert_id: Optional[str] = None,
         event_code: Optional[str] = None,
         reason: Optional[str] = None,
+        forwarded: bool = False,
     ) -> None:
         """Release any pins held for alert playout behaviors."""
 
@@ -1780,7 +1792,11 @@ class GPIOBehaviorManager:
 
         reason = reason or "Alert playout completed"
 
-        for behavior in (GPIOBehavior.DURATION_OF_ALERT, GPIOBehavior.PLAYOUT):
+        hold_behaviors = [GPIOBehavior.DURATION_OF_ALERT, GPIOBehavior.PLAYOUT]
+        if forwarded:
+            hold_behaviors.append(GPIOBehavior.FORWARDING_ALERT)
+
+        for behavior in hold_behaviors:
             for pin in self._pins_for_behavior(behavior):
                 self._release_hold(pin, behavior, alert_id, event_code, reason)
 
