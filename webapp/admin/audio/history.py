@@ -188,7 +188,7 @@ def register_history_routes(app, logger) -> None:
                         'alert_identifier': _alert_identifier,
                         'eom_url': eom_url,
                         'summary_data': summary_data,
-                        'message_text': message.message_text or (summary_data.get('message_text') if summary_data else None),
+                        'message_text': summary_data.get('message_text') if summary_data else None,
                         'source': 'automated',
                         'alert_label': _alert_label,
                     }
