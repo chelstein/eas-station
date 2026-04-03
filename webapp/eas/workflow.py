@@ -1318,8 +1318,9 @@ def register_workflow_routes(bp, logger, eas_config) -> None:
                 send_result['audio_player_configured'] = False
 
         finally:
-            # Clear broadcast state and deactivate GPIO relays
-            clear_broadcast_active()
+            # Release GPIO relays before clearing broadcast state so the
+            # on-air popup remains visible until the encoder has actually
+            # relinquished airchain control.
             if gpio_controller and activated_any:
                 try:
                     if manager_handled and gpio_behavior_manager:
@@ -1331,6 +1332,7 @@ def register_workflow_routes(bp, logger, eas_config) -> None:
                         gpio_controller.deactivate_all()
                 except Exception as exc:
                     workflow_logger.warning('GPIO release failed: %s', exc)
+            clear_broadcast_active()
 
             # Clean up temp file
             if tmp_file is not None:
