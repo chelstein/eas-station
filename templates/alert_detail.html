@@ -219,7 +219,6 @@
 
     .alert-content {
         line-height: 1.6;
-        white-space: pre-wrap;
     }
 
     .geocode-grid {
@@ -524,7 +523,7 @@
                             <hr class="my-4">
                             <h6 class="text-muted mb-2">Description</h6>
                             <div class="alert-description alert-content">
-                                {{ alert.description | safe }}
+                                <p class="mb-0">{{ alert.description | e | replace('\n\n', '</p><p class="mt-2 mb-0">') | replace('\n', '<br>') | safe }}</p>
                             </div>
                             {% endif %}
 
@@ -533,7 +532,7 @@
                             <div class="alert-instruction">
                                 <h6 class="text-muted mb-2"><i class="fas fa-exclamation-triangle"></i> Instructions</h6>
                                 <div class="alert-content">
-                                    {{ alert.instruction | safe }}
+                                    <p class="mb-0">{{ alert.instruction | e | replace('\n\n', '</p><p class="mt-2 mb-0">') | replace('\n', '<br>') | safe }}</p>
                                 </div>
                             </div>
                             {% endif %}
