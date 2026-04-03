@@ -2494,6 +2494,52 @@ def run_api_server():
         logger.error(f"Error running API server: {e}", exc_info=True)
 
 
+def _update_alert_indicators(broadcast_was_active: bool) -> bool:
+    """Drive tower light and NeoPixel controllers based on broadcast state.
+
+    Reads the current ``eas:broadcast_active`` Redis key and calls the
+    appropriate alert-lifecycle methods on any configured hardware indicator
+    controllers whenever the broadcast state changes.
+
+    Returns the NEW broadcast-active boolean so the caller can track state
+    across loop iterations.
+    """
+    try:
+        from app_utils.eas import get_broadcast_state
+        state = get_broadcast_state()
+        broadcast_active = bool(state.get('active', False))
+    except Exception:
+        return broadcast_was_active  # Leave light in current state on error
+
+    # Transition: idle → active
+    if broadcast_active and not broadcast_was_active:
+        if _tower_light_controller and _tower_light_controller.is_available:
+            try:
+                _tower_light_controller.start_alert()
+            except Exception as exc:
+                logger.warning("Tower light start_alert failed: %s", exc)
+        if _neopixel_controller:
+            try:
+                _neopixel_controller.start_alert()
+            except Exception as exc:
+                logger.warning("NeoPixel start_alert failed: %s", exc)
+
+    # Transition: active → idle
+    elif not broadcast_active and broadcast_was_active:
+        if _tower_light_controller and _tower_light_controller.is_available:
+            try:
+                _tower_light_controller.end_alert()
+            except Exception as exc:
+                logger.warning("Tower light end_alert failed: %s", exc)
+        if _neopixel_controller:
+            try:
+                _neopixel_controller.end_alert()
+            except Exception as exc:
+                logger.warning("NeoPixel end_alert failed: %s", exc)
+
+    return broadcast_active
+
+
 def health_check_loop():
     """Periodic health check and metrics publishing."""
     global _running
@@ -2501,10 +2547,16 @@ def health_check_loop():
     logger.info("📊 Hardware monitoring started")
     last_metrics_publish = 0
     metrics_interval = 5  # Publish metrics every 5 seconds
+    broadcast_was_active = False  # Track last-known broadcast state
 
     while _running:
         try:
             current_time = time.time()
+
+            # Drive alert indicators (tower light, NeoPixel) based on
+            # broadcast state; runs every loop iteration (1 s resolution).
+            if _redis_client and (_tower_light_controller or _neopixel_controller):
+                broadcast_was_active = _update_alert_indicators(broadcast_was_active)
 
             # Publish metrics periodically
             if current_time - last_metrics_publish >= metrics_interval:

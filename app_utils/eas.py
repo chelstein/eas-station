@@ -2653,7 +2653,6 @@ class EASBroadcaster:
             # gap can appear between the narration and the EOM burst.
             self._play_audio_or_bytes(audio_path, audio_bytes)
         finally:
-            clear_broadcast_active()
             if controller and activated_any:
                 try:  # pragma: no cover - hardware specific
                     if manager_handled and behavior_manager:
@@ -2666,6 +2665,7 @@ class EASBroadcaster:
                         controller.deactivate_all()
                 except Exception as exc:
                     self.logger.warning(f"GPIO release failed: {exc}")
+            clear_broadcast_active()
 
         return result
 

@@ -290,7 +290,6 @@ def register_message_routes(bp, logger) -> None:
                     logger.warning('Resend audio playback failed: %s', exc)
 
         finally:
-            clear_broadcast_active()
             if gpio_controller and activated_any:
                 try:
                     if manager_handled and gpio_behavior_manager:
@@ -301,6 +300,7 @@ def register_message_routes(bp, logger) -> None:
                         gpio_controller.deactivate_all()
                 except Exception as exc:
                     logger.warning('Resend GPIO release failed: %s', exc)
+            clear_broadcast_active()
             if tmp_file is not None:
                 try:
                     os.unlink(tmp_file.name)

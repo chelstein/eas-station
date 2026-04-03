@@ -8,6 +8,25 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.71.40] - 2026-04-03 - Fix stack light and on-air popup airchain timing
+
+### Fixed
+- USB tower light (`TowerLightController`) and NeoPixel controller were
+  initialized in `hardware_service.py` but `start_alert()` / `end_alert()`
+  were never called, so the stack light stayed on green standby throughout
+  every broadcast.  `health_check_loop()` now monitors the
+  `eas:broadcast_active` Redis key each second and drives both hardware
+  indicator controllers on broadcast-state transitions.
+- On-air broadcast overlay (global countdown timer popup) could disappear
+  while the encoder still held the airchain.  In all three broadcast
+  paths (`webapp/eas/workflow.py`, `webapp/eas/messages.py`,
+  `app_utils/eas.py`) the `finally` blocks previously called
+  `clear_broadcast_active()` **before** releasing the GPIO relay.  With
+  gevent cooperative multitasking the WebSocket push loop could fire
+  between those two calls, delivering `active: false` and hiding the popup
+  before the encoder released the airchain.  The order has been corrected:
+  GPIO is released first, then the broadcast-active Redis key is cleared.
+
 ## [2.71.39] - 2026-04-01 - Fix SSL cert recognition, update.sh cert preservation, and migration prompt
 
 ### Fixed
