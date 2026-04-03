@@ -276,6 +276,12 @@
                                                 <i class="fas fa-broadcast-tower"></i>
                                             </a>
                                             {% endif %}
+                                            {% if current_user and message.source == 'automated' %}
+                                            <button type="button" class="btn btn-warning" title="Resend this broadcast"
+                                                    onclick="resendEASMessage({{ message.id }}, this)">
+                                                <i class="fas fa-redo"></i>
+                                            </button>
+                                            {% endif %}
                                         </div>
                                     </td>
                                 </tr>
@@ -377,6 +383,32 @@
 </div>
 
 <script>
+async function resendEASMessage(messageId, btn) {
+    if (!confirm('Resend this EAS broadcast? This will activate GPIO relays and play audio through the configured output device.')) {
+        return;
+    }
+    var icon = btn.querySelector('i');
+    btn.disabled = true;
+    if (icon) { icon.className = 'fas fa-spinner fa-spin'; }
+    try {
+        var resp = await fetch('/admin/eas_messages/' + messageId + '/resend', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+        });
+        var result = await resp.json();
+        if (resp.ok) {
+            showToast('EAS message #' + messageId + ' resent successfully', 'success');
+        } else {
+            showToast(result.error || 'Failed to resend', 'error');
+        }
+    } catch (e) {
+        showToast('Failed to resend EAS message', 'error');
+    } finally {
+        btn.disabled = false;
+        if (icon) { icon.className = 'fas fa-redo'; }
+    }
+}
+
 function exportAudioArchive() {
     try {
         const table = document.getElementById('audioArchiveTable');

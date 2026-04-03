@@ -219,6 +219,7 @@
 
     .alert-content {
         line-height: 1.6;
+        white-space: pre-wrap;
     }
 
     .geocode-grid {
@@ -1774,7 +1775,7 @@
                                             <td class="text-center">
                                                 <div class="btn-group btn-group-sm" role="group">
                                                     {% if entry.audio_url %}
-                                                    <a class="btn btn-outline-primary" href="{{ entry.audio_url }}" target="_blank" rel="noopener">
+                                                    <a class="btn btn-outline-primary" href="{{ entry.audio_url }}" target="_blank" rel="noopener" title="Play audio">
                                                         <i class="fas fa-play"></i>
                                                     </a>
                                                     {% endif %}
@@ -1790,6 +1791,12 @@
                                                     <a class="btn btn-outline-warning" href="{{ entry.eom_url }}" target="_blank" rel="noopener" title="EOM Burst">
                                                         <i class="fas fa-broadcast-tower"></i>
                                                     </a>
+                                                    {% endif %}
+                                                    {% if current_user %}
+                                                    <button type="button" class="btn btn-warning" title="Resend this broadcast"
+                                                            onclick="resendEASMessage({{ entry.id }}, this)">
+                                                        <i class="fas fa-redo"></i>
+                                                    </button>
                                                     {% endif %}
                                                 </div>
                                             </td>
@@ -1906,6 +1913,32 @@
 <script src="{{ url_for('static', filename='vendor/leaflet/leaflet.min.js') }}"></script>
 
 <script>
+async function resendEASMessage(messageId, btn) {
+    if (!confirm('Resend this EAS broadcast? This will activate GPIO relays and play audio through the configured output device.')) {
+        return;
+    }
+    var icon = btn.querySelector('i');
+    btn.disabled = true;
+    if (icon) { icon.className = 'fas fa-spinner fa-spin'; }
+    try {
+        var resp = await fetch('/admin/eas_messages/' + messageId + '/resend', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+        });
+        var result = await resp.json();
+        if (resp.ok) {
+            showToast('EAS message #' + messageId + ' resent successfully', 'success');
+        } else {
+            showToast(result.error || 'Failed to resend', 'error');
+        }
+    } catch (e) {
+        showToast('Failed to resend EAS message', 'error');
+    } finally {
+        btn.disabled = false;
+        if (icon) { icon.className = 'fas fa-redo'; }
+    }
+}
+
 // SAME header expand/collapse toggle
 document.addEventListener('click', function(e) {
     const btn = e.target.closest('.same-header-toggle');
