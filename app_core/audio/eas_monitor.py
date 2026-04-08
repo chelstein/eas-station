@@ -235,8 +235,10 @@ def _store_received_alert(
         # already stored in the dedicated raw_audio_data column.  Leaving it
         # in the dict would cause JSONB serialization to fail (bytes are not
         # JSON-serializable), which would roll back the entire commit and lose
-        # the alert record entirely.
-        full_alert_json = {k: v for k, v in alert.items() if k != 'raw_audio_wav'}
+        # the alert record entirely.  relay_audio_wav is also bytes and must be
+        # stripped for the same reason.
+        _BINARY_KEYS = {'raw_audio_wav', 'relay_audio_wav'}
+        full_alert_json = {k: v for k, v in alert.items() if k not in _BINARY_KEYS}
 
         received_alert = ReceivedEASAlert(
             received_at=utc_now(),
