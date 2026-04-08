@@ -660,10 +660,16 @@ class UnifiedEASMonitorService:
             return
 
         # ── Extract post-ZCZC audio from the ring ─────────────────────────────
-        # Layout since ZCZC: remaining SAME bursts (~8 s) + attention tone (8 s)
-        # + post-tone buffer (1 s) = ~17 s to skip, then voice narration, then
-        # NNNN decode fires (~0.1 s into first EOM burst).
-        ATTENTION_SKIP_SAMPLES = int(self._target_sample_rate * 18)   # 18 s @ 16 kHz
+        # Layout since ZCZC decode fires (at end of first ~1 s burst):
+        #   ~3.8 s  remaining SAME bursts × 2 (each ~0.9 s) + 2 inter-burst silences
+        #   ~1.0 s  post-header pause before attention tone
+        #   ~8.5 s  NWS standard attention tone
+        #   ──────
+        #   ~13.3 s to skip before voice narration begins
+        # Using 13 s to avoid clipping the first words of the narration.
+        # (The EOM decode fires during the first NNNN burst, ~0.9 s in, so the
+        # ring captures up to that point; EOM_TRIM_SAMPLES removes those tones.)
+        ATTENTION_SKIP_SAMPLES = int(self._target_sample_rate * 13)   # 13 s @ 16 kHz
         EOM_TRIM_SAMPLES       = int(self._target_sample_rate * 2)    #  2 s safety trim
 
         with self._audio_rings_lock:

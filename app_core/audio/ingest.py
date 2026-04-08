@@ -917,35 +917,19 @@ class AudioIngestController:
             target_adapter.config.name,
         )
 
-        # Inject the test signal directly into the Icecast broadcast queue so
-        # that stream listeners hear it immediately with live audio gated.
-        # schedule_inject() feeds the EAS decoder via the capture loop, but
-        # that path does not gate live audio, meaning the FSK tones would be
-        # buried under live source audio on the Icecast stream.  Calling
-        # inject_eas_audio() here mirrors what EASBroadcaster.handle_alert()
-        # does for real alerts and guarantees the test signal is audible on
-        # the stream regardless of whether the OTA detection chain fires.
-        try:
-            _wav_buf = io.BytesIO()
-            with wave.open(_wav_buf, 'wb') as _wf:
-                _wf.setnchannels(1)
-                _wf.setsampwidth(2)          # 16-bit signed PCM
-                _wf.setframerate(sample_rate)  # 16000 Hz
-                _pcm = (np.clip(audio_np, -1.0, 1.0) * 32767.0).astype(np.int16)
-                _wf.writeframes(_pcm.tobytes())
-            _wav_bytes = _wav_buf.getvalue()
-            from app_core.audio.eas_stream_injector import inject_eas_audio
-            inject_eas_audio(_wav_bytes)
-            logger.info(
-                "EAS test signal injected into Icecast broadcast queue "
-                "for source '%s'",
-                target_adapter.config.name,
-            )
-        except Exception as _stream_exc:
-            logger.warning(
-                "EAS test signal Icecast stream injection failed (non-fatal): %s",
-                _stream_exc,
-            )
+        # Do NOT call inject_eas_audio() here with the raw FSK tones.
+        # The correct store-and-forward path is:
+        #   schedule_inject() → capture loop → SAME decoder → _on_eom_received()
+        #   → auto_forward_ota_alert() → EASBroadcaster.handle_alert()
+        #   → inject_eas_audio(full_broadcast_wav)
+        #
+        # Calling inject_eas_audio() here with the raw FSK+EOM burst causes
+        # Icecast listeners to hear the raw preamble tones immediately (before
+        # the decoder even fires), followed by the EOM, and then the full
+        # regenerated broadcast 1-2 minutes later — which is exactly backwards.
+        # The EASBroadcaster already calls inject_eas_audio() with the complete
+        # broadcast sequence (SAME headers + attention tone + narration + EOM)
+        # once the EOM is received and the alert has been processed.
 
         return target_adapter.config.name
 
