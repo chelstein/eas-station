@@ -344,9 +344,18 @@ class AudioSourceAdapter(ABC):
 
                     # ARCHITECTURAL FIX: Resample to 16kHz and publish to EAS queue
                     # This eliminates resampling bottleneck and reduces queue memory by 3x
-                    eas_chunk = self._resample_for_eas(audio_chunk)
-                    if eas_chunk is not None:
-                        self._eas_broadcast.publish(eas_chunk)
+                    #
+                    # GATE: When inject_pending has queued test-signal chunks, suppress the
+                    # live audio chunk from _eas_broadcast.  Interleaving live source audio
+                    # (e.g. music from a radio stream) with the injected FSK tones destroys
+                    # the coherent preamble the SAME DLL needs to lock on, causing the EAS
+                    # decoder to miss the injected test signal entirely.  This gate does NOT
+                    # affect OTA EAS detection: inject_pending is empty during normal 24/7
+                    # monitoring, so live audio always reaches the EAS decoder unimpeded.
+                    if self._inject_pending.empty():
+                        eas_chunk = self._resample_for_eas(audio_chunk)
+                        if eas_chunk is not None:
+                            self._eas_broadcast.publish(eas_chunk)
                 else:
                     # No decoded audio chunk available
                     # Only sleep if source had no data activity (prevents busy loops on truly idle sources)

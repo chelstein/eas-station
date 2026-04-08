@@ -263,3 +263,148 @@ class TestEndToEndPipeline:
 
         assert received == n_chunks
         assert bq.get_stats()["dropped_chunks"] == 0
+
+
+class TestStreamInjectEASGating:
+    """
+    Regression test: injecting a SAME test signal through a live-stream source
+    must NOT interleave live audio with the EAS FSK tones in the EAS broadcast
+    queue.  Interleaving destroys the coherent preamble the SAME DLL needs to
+    lock on, causing the decoder to miss the injected signal entirely.
+
+    Fix (ingest.py): the capture loop now suppresses the live audio chunk from
+    _eas_broadcast when _inject_pending is non-empty, letting the injected FSK
+    chunks pass through uncontaminated.
+    """
+
+    NATIVE_RATE = 44_100  # Typical internet radio stream sample rate
+    TARGET_RATE = 16_000  # EAS decoder always works at 16 kHz
+    HEADER = "ZCZC-EAS-RWT-000000+0015-0231350-EASTEST-"
+    TEST_QUEUE_SIZE = 10_000  # Large enough to hold all test chunks without dropping
+
+    @staticmethod
+    def _resample(chunk: np.ndarray, src_rate: int, dst_rate: int = 16_000) -> np.ndarray:
+        new_len = max(1, int(len(chunk) * dst_rate / src_rate))
+        return np.interp(
+            np.linspace(0, len(chunk) - 1, new_len),
+            np.arange(len(chunk)),
+            chunk,
+        ).astype(np.float32)
+
+    def _make_eas_chunks_16k(self) -> list:
+        """Generate SAME header at 16 kHz, upsample to native rate, then resample back."""
+        bits = encode_same_bits(self.HEADER, include_preamble=True)
+        samples_int = generate_fsk_samples(
+            bits, SAMPLE_RATE, BIT_RATE, SAME_MARK_FREQ, SAME_SPACE_FREQ, AMPLITUDE
+        )
+        audio_16k = np.array(samples_int, dtype=np.float32) / AMPLITUDE
+
+        # Upsample to native rate (as inject_eas_test_signal does)
+        native_len = max(1, int(len(audio_16k) * self.NATIVE_RATE / self.TARGET_RATE))
+        audio_native = np.interp(
+            np.linspace(0, len(audio_16k) - 1, native_len),
+            np.arange(len(audio_16k)),
+            audio_16k,
+        ).astype(np.float32)
+
+        # Chunk at ~85 ms (as schedule_inject does)
+        chunk_native = max(1, int(self.NATIVE_RATE * 0.085))
+        chunks_native = [
+            audio_native[i:i + chunk_native]
+            for i in range(0, len(audio_native), chunk_native)
+        ]
+
+        # Resample each chunk back to 16 kHz (as _resample_for_eas does)
+        return [self._resample(c, self.NATIVE_RATE) for c in chunks_native]
+
+    def _make_live_chunk_16k(self) -> np.ndarray:
+        """Simulate one live stream chunk (random music-like audio resampled to 16 kHz)."""
+        chunk_native = max(1, int(self.NATIVE_RATE * 0.085))
+        rng = np.random.default_rng(seed=42)
+        live = (rng.standard_normal(chunk_native) * 0.5).astype(np.float32)
+        return self._resample(live, self.NATIVE_RATE)
+
+    def _decode_queue(self, eas_bcast) -> list:
+        """Feed the EAS broadcast queue through the SAME decoder and return decoded messages."""
+        import queue as q_mod
+        from app_utils.eas_demod import SAMEDemodulatorCore
+
+        detected = []
+
+        def on_alert(msg, conf, ranges):
+            detected.append(msg)
+
+        core = SAMEDemodulatorCore(
+            sample_rate=self.TARGET_RATE,
+            message_callback=on_alert,
+            apply_bandpass=True,
+        )
+
+        buf = np.array([], dtype=np.float32)
+        chunk_size = 1600  # 100 ms at 16 kHz, same as UnifiedEASMonitorService
+        while True:
+            # Drain available chunks into buffer using try/except rather than .empty()
+            while len(buf) < chunk_size:
+                try:
+                    buf = np.concatenate([buf, eas_bcast.get_nowait()])
+                except q_mod.Empty:
+                    break
+            if len(buf) < chunk_size:
+                break
+            core.process_samples(buf[:chunk_size])
+            buf = buf[chunk_size:]
+        return detected
+
+    def test_interleaved_live_and_inject_fails_detection(self):
+        """Confirm that without the gate, interleaved audio prevents EAS detection.
+
+        This test INTENTIONALLY verifies the pre-fix failure mode so that we
+        have a baseline and the complementary gated test is meaningful.
+        """
+        import queue as q_mod
+
+        eas_chunks = self._make_eas_chunks_16k()
+        live_chunk = self._make_live_chunk_16k()
+
+        bcast = q_mod.Queue(maxsize=self.TEST_QUEUE_SIZE)
+        # Simulate old (buggy) behaviour: one live chunk before every inject chunk
+        for inject_c in eas_chunks:
+            bcast.put(live_chunk.copy())   # live audio interleaved
+            bcast.put(inject_c.copy())     # EAS tones
+
+        detected = self._decode_queue(bcast)
+        # With interleaving the DLL cannot lock — expect 0 detections.
+        assert detected == [], (
+            "Unexpected EAS detection with interleaved live audio; "
+            "the gating test may give a false positive"
+        )
+
+    def test_gated_inject_detects_eas_signal(self):
+        """With the fix, live audio is suppressed from _eas_broadcast while
+        inject_pending is non-empty, so the SAME decoder sees coherent FSK.
+
+        Simulates the corrected capture-loop behaviour from ingest.py:
+          - One live chunk arrives *before* the inject (already published)
+          - All EAS chunks are published without any intervening live audio
+          - Live audio resumes after the inject is fully drained
+        """
+        import queue as q_mod
+
+        eas_chunks = self._make_eas_chunks_16k()
+        live_chunk = self._make_live_chunk_16k()
+
+        bcast = q_mod.Queue(maxsize=self.TEST_QUEUE_SIZE)
+        # Iteration before inject: live audio goes through normally
+        bcast.put(live_chunk.copy())
+        # Iteration with inject: live audio suppressed, only EAS chunks
+        for inject_c in eas_chunks:
+            bcast.put(inject_c.copy())
+        # Subsequent iterations: live audio resumes
+        bcast.put(live_chunk.copy())
+
+        detected = self._decode_queue(bcast)
+        assert len(detected) >= 1, (
+            "EAS test signal was not detected even though live audio was gated "
+            "from _eas_broadcast during injection.  Check the _inject_pending "
+            "gate in AudioSourceAdapter._capture_loop (ingest.py)."
+        )
