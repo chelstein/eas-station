@@ -632,17 +632,33 @@ class UnifiedEASMonitorService:
             ring_total_now = self._ring_total_added.get(effective_source, 0)
 
         with self._pending_lock:
-            if effective_source in self._pending_alerts:
-                # A new header arrived before the previous EOM; replace it.
-                logger.warning(
-                    "New ZCZC from '%s' replaced un-EOM'd pending alert (%s → %s)",
-                    effective_source,
-                    self._pending_alerts[effective_source].get('event_code', '?'),
-                    alert_data.get('event_code', '?'),
-                )
+            same_event_pending = effective_source in self._pending_alerts
+            if same_event_pending:
+                existing_event = self._pending_alerts[effective_source].get('event_code', '?')
+                new_event = alert_data.get('event_code', '?')
+                if existing_event != new_event:
+                    # Different event code — a new distinct alert; replace ring reference too.
+                    logger.warning(
+                        "New ZCZC from '%s' replaced un-EOM'd pending alert (%s → %s)",
+                        effective_source, existing_event, new_event,
+                    )
+                    self._zczc_ring_total[effective_source] = ring_total_now
+                else:
+                    # Same event code — this is burst #2 or #3 of the same header
+                    # transmission.  Update the decoded alert data (later bursts may
+                    # be more accurate) but keep the ring position from burst #1 so
+                    # that ATTENTION_SKIP_SAMPLES is measured from the earliest
+                    # known point and we don't clip the narration start.
+                    logger.debug(
+                        "SAME burst #2/#3 from '%s' for %s — keeping ring position from burst #1",
+                        effective_source, new_event,
+                    )
+                    # (ring total intentionally NOT updated here)
+            else:
+                # First burst for this source — record ring position.
+                self._zczc_ring_total[effective_source] = ring_total_now
             alert_data['_pending_since'] = time.time()
             self._pending_alerts[effective_source] = alert_data
-            self._zczc_ring_total[effective_source] = ring_total_now
 
         logger.warning(
             "🔔 SAME header from '%s': %s — holding until EOM before forwarding",
