@@ -430,7 +430,9 @@ class UnifiedEASMonitorService:
         self._last_discovery_time = 0.0
 
         # Statistics
-        self._total_alerts_detected = 0
+        self._total_alerts_detected = 0   # ZCZC header count (may be 3× per event)
+        self._total_alerts_dispatched = 0  # EOM-confirmed dispatch count (one per event)
+        self._last_alert_dispatch_time: Optional[float] = None  # Unix timestamp of last dispatch
 
         # Per-source rolling audio ring buffers for OTA alert capture.
         # Stores up to _ring_max_seconds of 16 kHz float32 chunks per source.
@@ -511,7 +513,8 @@ class UnifiedEASMonitorService:
         logger.info(
             f"✅ UnifiedEASMonitorService stopped. "
             f"Processed audio from {watcher_count} source(s), "
-            f"detected {self._total_alerts_detected} total alerts"
+            f"dispatched {self._total_alerts_dispatched} alert(s) "
+            f"({self._total_alerts_detected} ZCZC header burst(s) decoded)"
         )
     
     def _discover_sources(self) -> None:
@@ -703,12 +706,15 @@ class UnifiedEASMonitorService:
             source_name, alert_data.get('event_code', 'UNKNOWN'),
         )
 
+        self._total_alerts_dispatched += 1
+        self._last_alert_dispatch_time = time.time()
+
         if self.alert_callback:
             try:
                 self.alert_callback(alert_data)
             except Exception as e:
                 logger.error("Error in alert callback: %s", e, exc_info=True)
-    
+
     def _monitor_loop(self) -> None:
         """
         Main monitoring loop (single thread for all sources).
@@ -917,7 +923,9 @@ class UnifiedEASMonitorService:
             "wall_clock_runtime_seconds": uptime,
             "runtime_seconds": total_samples / self._target_sample_rate if total_samples > 0 else 0,
             "samples_per_second": int(samples_per_second),
-            "alerts_detected": self._total_alerts_detected,
+            "alerts_detected": self._total_alerts_dispatched,  # EOM-confirmed events
+            "alerts_detected_zczc": self._total_alerts_detected,  # raw ZCZC count (up to 3× per event)
+            "last_alert_time": self._last_alert_dispatch_time,  # Unix timestamp, None if never
             "monitor_count": monitor_count,  # Use captured value
             "active_sources": active_sources,
             "audio_flowing": active_sources > 0,
