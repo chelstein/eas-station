@@ -110,10 +110,13 @@ class StreamingSAMEDecoder:
         """Bridge from SAMEDemodulatorCore callback to StreamingSAMEAlert."""
         if confidence < self.MIN_CONFIDENCE:
             logger.warning(
-                "Rejected low-confidence SAME decode (%.1f%% < %.0f%% threshold): %s",
+                "Low-confidence SAME decode (%.1f%% < %.0f%% threshold) — logging but not forwarding to air: %s",
                 confidence * 100, self.MIN_CONFIDENCE * 100, msg_text[:60],
             )
-            return
+            # Do NOT return — still fire the callback so the alert is logged to the
+            # received-alerts table.  The forwarding decision is made downstream in
+            # create_fips_filtering_callback, which will mark these as
+            # 'ignored / low_confidence' without passing them to the air chain.
 
         self.alerts_detected += 1
 

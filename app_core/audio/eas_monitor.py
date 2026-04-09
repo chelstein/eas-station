@@ -239,6 +239,13 @@ def _store_received_alert(
         # stripped for the same reason.
         _BINARY_KEYS = {'raw_audio_wav', 'relay_audio_wav'}
         full_alert_json = {k: v for k, v in alert.items() if k not in _BINARY_KEYS}
+        # numpy float64 is not JSON-serializable — convert to plain Python float
+        # so the JSONB commit does not fail and silently drop the alert record.
+        if 'confidence' in full_alert_json and full_alert_json['confidence'] is not None:
+            try:
+                full_alert_json['confidence'] = float(full_alert_json['confidence'])
+            except (TypeError, ValueError):
+                pass
 
         received_alert = ReceivedEASAlert(
             received_at=utc_now(),
@@ -353,6 +360,30 @@ def create_fips_filtering_callback(
         alert_fips_codes = alert.get('location_codes', [])
         event_code = alert.get('event_code', 'UNKNOWN')
         originator = alert.get('originator', 'UNKNOWN')
+
+        # Low-confidence decodes: log to DB but never forward to air.
+        # The confidence threshold lives here (not in StreamingSAMEDecoder) so
+        # that every decoded header is always stored in received_eas_alerts for
+        # operator visibility, regardless of signal quality.
+        _MIN_FORWARD_CONFIDENCE = 0.25
+        confidence = float(alert.get('confidence', 0.0))
+        if confidence < _MIN_FORWARD_CONFIDENCE:
+            log.warning(
+                "LOW CONFIDENCE - LOGGING ONLY (%.1f%% < %.0f%%): Event=%s | "
+                "Originator=%s | FIPS=%s",
+                confidence * 100, _MIN_FORWARD_CONFIDENCE * 100,
+                event_code, originator, ','.join(alert_fips_codes) or 'NONE',
+            )
+            _store_received_alert(
+                alert=alert,
+                forwarding_decision='ignored',
+                forwarding_reason=(
+                    f"Low confidence decode: {confidence:.1%} < "
+                    f"{_MIN_FORWARD_CONFIDENCE:.0%} threshold"
+                ),
+                matched_fips=[],
+            )
+            return
 
         # If no FIPS codes configured, accept ALL alerts
         if not configured_fips_codes:
