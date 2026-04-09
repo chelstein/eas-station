@@ -632,17 +632,33 @@ class UnifiedEASMonitorService:
             ring_total_now = self._ring_total_added.get(effective_source, 0)
 
         with self._pending_lock:
-            if effective_source in self._pending_alerts:
-                # A new header arrived before the previous EOM; replace it.
-                logger.warning(
-                    "New ZCZC from '%s' replaced un-EOM'd pending alert (%s → %s)",
-                    effective_source,
-                    self._pending_alerts[effective_source].get('event_code', '?'),
-                    alert_data.get('event_code', '?'),
-                )
+            same_event_pending = effective_source in self._pending_alerts
+            if same_event_pending:
+                existing_event = self._pending_alerts[effective_source].get('event_code', '?')
+                new_event = alert_data.get('event_code', '?')
+                if existing_event != new_event:
+                    # Different event code — a new distinct alert; replace ring reference too.
+                    logger.warning(
+                        "New ZCZC from '%s' replaced un-EOM'd pending alert (%s → %s)",
+                        effective_source, existing_event, new_event,
+                    )
+                    self._zczc_ring_total[effective_source] = ring_total_now
+                else:
+                    # Same event code — this is burst #2 or #3 of the same header
+                    # transmission.  Update the decoded alert data (later bursts may
+                    # be more accurate) but keep the ring position from burst #1 so
+                    # that ATTENTION_SKIP_SAMPLES is measured from the earliest
+                    # known point and we don't clip the narration start.
+                    logger.debug(
+                        "SAME burst #2/#3 from '%s' for %s — keeping ring position from burst #1",
+                        effective_source, new_event,
+                    )
+                    # (ring total intentionally NOT updated here)
+            else:
+                # First burst for this source — record ring position.
+                self._zczc_ring_total[effective_source] = ring_total_now
             alert_data['_pending_since'] = time.time()
             self._pending_alerts[effective_source] = alert_data
-            self._zczc_ring_total[effective_source] = ring_total_now
 
         logger.warning(
             "🔔 SAME header from '%s': %s — holding until EOM before forwarding",
@@ -660,10 +676,16 @@ class UnifiedEASMonitorService:
             return
 
         # ── Extract post-ZCZC audio from the ring ─────────────────────────────
-        # Layout since ZCZC: remaining SAME bursts (~8 s) + attention tone (8 s)
-        # + post-tone buffer (1 s) = ~17 s to skip, then voice narration, then
-        # NNNN decode fires (~0.1 s into first EOM burst).
-        ATTENTION_SKIP_SAMPLES = int(self._target_sample_rate * 18)   # 18 s @ 16 kHz
+        # Layout since ZCZC decode fires (at end of first ~1 s burst):
+        #   ~3.8 s  remaining SAME bursts × 2 (each ~0.9 s) + 2 inter-burst silences
+        #   ~1.0 s  post-header pause before attention tone
+        #   ~8.5 s  NWS standard attention tone
+        #   ──────
+        #   ~13.3 s to skip before voice narration begins
+        # Using 13 s to avoid clipping the first words of the narration.
+        # (The EOM decode fires during the first NNNN burst, ~0.9 s in, so the
+        # ring captures up to that point; EOM_TRIM_SAMPLES removes those tones.)
+        ATTENTION_SKIP_SAMPLES = int(self._target_sample_rate * 13)   # 13 s @ 16 kHz
         EOM_TRIM_SAMPLES       = int(self._target_sample_rate * 2)    #  2 s safety trim
 
         with self._audio_rings_lock:
