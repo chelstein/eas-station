@@ -456,7 +456,7 @@ class UnifiedEASMonitorService:
         self._pending_alerts: Dict[str, Dict] = {}     # source → alert dict
         self._zczc_ring_total: Dict[str, int] = {}     # source → ring total at ZCZC
         self._pending_lock = threading.Lock()
-        self._eom_timeout_seconds: float = 300.0       # 5-minute safety net
+        self._eom_timeout_seconds: float = 120.0       # 2-minute safety net (NNNN is now detected live)
 
         logger.info(
             f"UnifiedEASMonitorService initialized: "
