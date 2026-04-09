@@ -537,7 +537,11 @@ class SAMEDemodulatorCore:
 
                     if 32 <= byte_val <= 126 or byte_val in (10, 13):
                         char = chr(byte_val)
-                        if not self.in_message and char == "Z":
+                        if not self.in_message and char in ("Z", "N"):
+                            # 'Z' → start of a ZCZC header burst.
+                            # 'N' → start of an NNNN EOM burst (never starts with 'Z').
+                            # Both begin with their own preamble so synced=True here
+                            # means we just came off a valid 0xAB preamble run.
                             self.in_message = True
                             self._burst_start_sample = self.samples_processed
                             self.current_msg = [char]
@@ -563,6 +567,12 @@ class SAMEDemodulatorCore:
                     self.byte_counter = 0
 
     def _is_message_complete(self, msg_text: str, last_char: str) -> bool:
+        # NNNN EOM: complete as soon as we have the 4-character string "NNNN".
+        # Some ENDECs append \r or \n; the existing CR/LF check below catches
+        # those.  This check handles transmitters that send exactly "NNNN" with
+        # no terminator (the 4th 'N' is the last printable byte in the burst).
+        if last_char == "N" and len(self.current_msg) >= 4 and msg_text[:4] == "NNNN":
+            return True
         if last_char in ("\r", "\n"):
             return "ZCZC" in msg_text or "NNNN" in msg_text
         if last_char == "-" and len(self.current_msg) > 40:

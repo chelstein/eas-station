@@ -677,16 +677,17 @@ class UnifiedEASMonitorService:
 
         # ── Extract post-ZCZC audio from the ring ─────────────────────────────
         # Layout since ZCZC decode fires (at end of first ~1 s burst):
-        #   ~3.8 s  remaining SAME bursts × 2 (each ~0.9 s) + 2 inter-burst silences
-        #   ~1.0 s  post-header pause before attention tone
-        #   ~8.5 s  NWS standard attention tone
+        #   ~4.8 s  three SAME bursts + inter-burst silences
+        #   ~0.5 s  pause before attention tone
+        #   8–25 s  attention tone (EAS 853+960 Hz or EBS 1050 Hz)
         #   ──────
-        #   ~13.3 s to skip before voice narration begins
-        # Using 13 s to avoid clipping the first words of the narration.
-        # (The EOM decode fires during the first NNNN burst, ~0.9 s in, so the
-        # ring captures up to that point; EOM_TRIM_SAMPLES removes those tones.)
-        ATTENTION_SKIP_SAMPLES = int(self._target_sample_rate * 13)   # 13 s @ 16 kHz
-        EOM_TRIM_SAMPLES       = int(self._target_sample_rate * 2)    #  2 s safety trim
+        #   narration follows immediately after the tone ends
+        #
+        # We detect the actual tone end via _find_narration_start() instead of
+        # using a hard-coded skip, so alerts with short/long or missing tones
+        # are handled correctly.  EOM_TRIM_SAMPLES removes the leading NNNN FSK
+        # burst that appears at the very end of the ring buffer.
+        EOM_TRIM_SAMPLES = int(self._target_sample_rate * 2)    # 2 s safety trim
 
         with self._audio_rings_lock:
             ring = self._audio_rings.get(source_name)
@@ -706,8 +707,12 @@ class UnifiedEASMonitorService:
                         post_zczc, self._target_sample_rate
                     )
 
+                # Detect where the attention tone ends so we can slice out
+                # just the voice narration for the relay broadcast.
+                attention_skip = _find_narration_start(post_zczc, self._target_sample_rate)
+
                 # Slice out the narration for the relay broadcast.
-                narration = post_zczc[ATTENTION_SKIP_SAMPLES:]
+                narration = post_zczc[attention_skip:]
                 if EOM_TRIM_SAMPLES > 0 and len(narration) > EOM_TRIM_SAMPLES:
                     narration = narration[:-EOM_TRIM_SAMPLES]
 
@@ -717,9 +722,21 @@ class UnifiedEASMonitorService:
                         narration, self._target_sample_rate
                     )
                     logger.info(
-                        "Captured %.1f s narration audio from '%s' for relay",
-                        len(narration) / self._target_sample_rate, source_name,
+                        "Captured %.1f s narration audio from '%s' for relay "
+                        "(tone ended at %.1f s)",
+                        len(narration) / self._target_sample_rate,
+                        source_name,
+                        attention_skip / self._target_sample_rate,
                     )
+
+                # Always relay with the standard EAS dual-tone (853+960 Hz, 8 s)
+                # regardless of what the originating station transmitted:
+                #   • NOAA sends 1050 Hz  → strip, replace with EAS dual-tone
+                #   • Sender sends EBS dual-tone → relay as EAS dual-tone
+                # The tone duration is fixed at 8 s per FCC §11.31(a).
+                alert_data['relay_tone_profile'] = 'attention'   # 853 + 960 Hz
+                alert_data['relay_tone_duration'] = 8.0
+
             except Exception as _exc:
                 logger.warning("Could not encode OTA narration audio: %s", _exc)
 
@@ -1009,6 +1026,90 @@ UnifiedEASMonitor = UnifiedEASMonitorService
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
+def _find_narration_start(post_zczc: np.ndarray, sample_rate: int) -> int:
+    """Detect where the attention tone ends and voice narration begins.
+
+    Scans the post-ZCZC ring-buffer audio for sustained energy at the EAS
+    (853 Hz + 960 Hz) or EBS (1050 Hz) attention-signal frequencies, then
+    returns the sample index of the first narration sample.
+
+    Falls back to a 13-second default when no tone is detected:
+        ~4.8 s  three SAME header bursts + inter-burst silences
+        ~0.5 s  pause before attention tone
+        ~8.5 s  NWS standard attention tone
+        ─────
+        ~13.3 s before voice narration
+
+    SAME FSK uses 2083 Hz (mark) and 1562 Hz (space) so the detector is
+    well clear of header-burst energy.
+    """
+    FALLBACK_SAMPLES = int(sample_rate * 13)
+    MIN_SKIP_SAMPLES = int(sample_rate * 4)   # never skip < 4 s (header bursts)
+
+    if len(post_zczc) < MIN_SKIP_SAMPLES:
+        return FALLBACK_SAMPLES
+
+    win_n   = int(sample_rate * 0.25)   # 250 ms FFT window
+    hop_n   = win_n // 2                # 50 % overlap → 125 ms hop
+
+    # EAS dual-tone (853 + 960 Hz) and EBS single-tone (1050 Hz)
+    TONE_FREQS_HZ = [853.0, 960.0, 1050.0]
+    target_bins = [
+        int(round(f * win_n / sample_rate))
+        for f in TONE_FREQS_HZ
+        if 0 < round(f * win_n / sample_rate) < win_n // 2 + 1
+    ]
+
+    tone_active: list = []
+    for start in range(0, len(post_zczc) - win_n, hop_n):
+        chunk = post_zczc[start : start + win_n].astype(np.float64)
+        if np.max(np.abs(chunk)) < 1e-6:       # silence window
+            tone_active.append(False)
+            continue
+        mag = np.abs(np.fft.rfft(chunk, n=win_n))
+        total = np.sum(mag) + 1e-10
+        tone_sum = sum(mag[b] for b in target_bins)
+        # Tone present when ≥ 25 % of spectral magnitude sits at target freqs
+        tone_active.append((tone_sum / total) >= 0.25)
+
+    if not tone_active:
+        return FALLBACK_SAMPLES
+
+    min_win = MIN_SKIP_SAMPLES // hop_n
+
+    # First window (after header region) that has the tone
+    tone_start_win = None
+    for i in range(min(min_win, len(tone_active)), len(tone_active)):
+        if tone_active[i]:
+            tone_start_win = i
+            break
+
+    if tone_start_win is None:
+        # No tone detected — narration follows header bursts directly
+        return max(FALLBACK_SAMPLES, MIN_SKIP_SAMPLES)
+
+    # Extend through the tone region; allow up to 3 consecutive silent windows
+    # (brief drop-outs from some transmitters)
+    silent_run = 0
+    tone_end_win = tone_start_win
+    for i in range(tone_start_win, len(tone_active)):
+        if tone_active[i]:
+            tone_end_win = i
+            silent_run = 0
+        else:
+            silent_run += 1
+            if silent_run > 3:
+                break
+
+    # One extra window of safety margin after tone ends
+    narration_start = (tone_end_win + 2) * hop_n
+    logger.debug(
+        "_find_narration_start: tone span windows %d–%d → narration @ sample %d (%.1f s)",
+        tone_start_win, tone_end_win, narration_start, narration_start / sample_rate,
+    )
+    return max(narration_start, MIN_SKIP_SAMPLES)
+
 
 def _encode_wav_bytes(samples: np.ndarray, sample_rate: int) -> bytes:
     """Encode a float32 numpy array as a 16-bit mono WAV byte string."""

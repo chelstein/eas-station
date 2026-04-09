@@ -1805,14 +1805,30 @@ class EASAudioGenerator:
             samples.extend(silence)
             segment_samples['same'].extend(silence)
 
-        tone_duration = float(self.config.get('attention_tone_seconds', 8) or 8)
-        attention_samples = _generate_tone((853.0, 960.0), tone_duration, self.sample_rate, amplitude)
+        # relay_tone_duration overrides the configured value for OTA relays so
+        # the attention signal is always exactly 8 s regardless of station config.
+        if 'relay_tone_duration' in payload:
+            tone_duration = float(payload['relay_tone_duration'])
+        else:
+            tone_duration = float(self.config.get('attention_tone_seconds', 8) or 8)
+        _tone_profile = str(payload.get('relay_tone_profile', 'attention')).strip().lower()
+        # 'none' is used for RWT relays: FCC §11.61 forbids sending EBS tones
+        # with a Required Weekly Test.  RWT relay = header × 3 + EOM only.
+        _omit_tone = _tone_profile in ('none', 'omit', 'off', 'disabled')
+        attention_samples: List[int] = []
+        if not _omit_tone:
+            if _tone_profile in ('1050', '1050hz', 'single'):
+                _tone_freqs: tuple = (1050.0,)
+            else:
+                _tone_freqs = (853.0, 960.0)   # standard EAS dual-tone
+            attention_samples = _generate_tone(_tone_freqs, tone_duration, self.sample_rate, amplitude)
         samples.extend(attention_samples)
         segment_samples['attention'].extend(attention_samples)
 
-        post_tone_silence = _generate_silence(1.0, self.sample_rate)
-        samples.extend(post_tone_silence)
-        segment_samples['buffer'].extend(post_tone_silence)
+        if not _omit_tone:
+            post_tone_silence = _generate_silence(1.0, self.sample_rate)
+            samples.extend(post_tone_silence)
+            segment_samples['buffer'].extend(post_tone_silence)
 
         message_text = _compose_message_text(alert, payload)
         if message_text:
@@ -1876,7 +1892,8 @@ class EASAudioGenerator:
         # OTA relay audio takes highest priority: use the narration captured from
         # the received broadcast (between attention tone and EOM) instead of any
         # IPAWS embedded audio or synthesised TTS.
-        relay_audio_wav_bytes = payload.get('relay_audio_wav_bytes')
+        # Exception: when the tone is omitted (e.g. RWT) there is no narration.
+        relay_audio_wav_bytes = None if _omit_tone else payload.get('relay_audio_wav_bytes')
         if relay_audio_wav_bytes:
             relay_samples = _convert_audio_to_samples(
                 relay_audio_wav_bytes, 'audio/wav', self.sample_rate, self.logger
@@ -1893,7 +1910,10 @@ class EASAudioGenerator:
                     "relay_audio_wav_bytes present but failed to decode — falling back to IPAWS/TTS"
                 )
 
-        if voice_samples is None:
+        if _omit_tone:
+            # No-tone mode (e.g. RWT): header + EOM only — skip all narration.
+            voice_samples = None
+        elif voice_samples is None:
             if embedded_audio_samples:
                 # Use embedded audio from IPAWS instead of TTS
                 self.logger.info(

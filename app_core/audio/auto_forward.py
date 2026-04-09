@@ -424,6 +424,8 @@ def auto_forward_ota_alert(
     fips_codes = alert_dict.get('location_codes', [])
     source_name = alert_dict.get('source_name', 'OTA')
     relay_audio_wav = alert_dict.get('relay_audio_wav')
+    relay_tone_profile = alert_dict.get('relay_tone_profile', 'attention')  # 853+960 Hz EAS dual-tone
+    relay_tone_duration = alert_dict.get('relay_tone_duration', 8.0)         # always 8 s
 
     result: Dict[str, Any] = {
         'forwarded': False,
@@ -447,17 +449,26 @@ def auto_forward_ota_alert(
         )
         return result
 
-    # Event code filtering: if forwarded_event_codes is configured, only forward
-    # events in that allowlist. An empty list means forward all event types.
+    # Event code filtering.
     forwarded_event_codes = eas_config.get('forwarded_event_codes') or []
-    if forwarded_event_codes:
-        allowed = {str(c).strip().upper() for c in forwarded_event_codes if str(c).strip()}
-        if event_code.upper() not in allowed:
-            result['reason'] = (
-                f"Event '{event_code}' is not in the configured forwarding allowlist"
-            )
-            log.info("OTA auto-forward skipped: %s", result['reason'])
-            return result
+    allowed = {str(c).strip().upper() for c in forwarded_event_codes if str(c).strip()}
+
+    # RWT is suppressed by default even when no allowlist is configured.
+    # Operators must explicitly add 'RWT' to forwarded_event_codes to relay tests.
+    if event_code.upper() == 'RWT' and 'RWT' not in allowed:
+        result['reason'] = (
+            "RWT not forwarded — add 'RWT' to forwarded_event_codes to relay test activations"
+        )
+        log.info("OTA auto-forward skipped: %s", result['reason'])
+        return result
+
+    # General allowlist: when configured, reject anything not on the list.
+    if allowed and event_code.upper() not in allowed:
+        result['reason'] = (
+            f"Event '{event_code}' is not in the configured forwarding allowlist"
+        )
+        log.info("OTA auto-forward skipped: %s", result['reason'])
+        return result
 
     # Cross-source deduplication: only check when we have enough information
     # to produce a meaningful key (UNKNOWN is already blocked above).
@@ -539,10 +550,25 @@ def auto_forward_ota_alert(
         'forwarded': True,
     }
 
-    # Attach OTA narration audio captured between attention tone and EOM so
-    # build_files() can relay it instead of synthesising new TTS.
-    if relay_audio_wav:
-        payload['relay_audio_wav_bytes'] = relay_audio_wav
+    # RWT must never carry an EBS attention tone — FCC §11.61 prohibits it.
+    # When an RWT is forwarded, the relay is header × 3 + EOM only.
+    if event_code.upper() == 'RWT':
+        payload['relay_tone_profile'] = 'none'
+        payload['relay_tone_duration'] = 0.0
+        # Do NOT attach relay_audio_wav_bytes — no narration on RWT
+    else:
+        # Attach OTA narration audio captured between attention tone and EOM so
+        # build_files() can relay it instead of synthesising new TTS.
+        # Alerts with a 1050 Hz or EBS attention tone will always have narration.
+        if relay_audio_wav:
+            payload['relay_audio_wav_bytes'] = relay_audio_wav
+
+        # Relay always uses the EAS dual-tone (853+960 Hz, 8 s).  Both the NOAA
+        # 1050 Hz tone and any EBS dual-tone from the originating station are
+        # stripped from the captured ring-buffer audio by _find_narration_start();
+        # the broadcaster generates a fresh 8-second attention signal.
+        payload['relay_tone_profile'] = relay_tone_profile
+        payload['relay_tone_duration'] = relay_tone_duration
 
     from app_utils.eas import EASBroadcaster
 
