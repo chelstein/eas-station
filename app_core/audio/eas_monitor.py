@@ -269,21 +269,52 @@ def _store_received_alert(
             logger.info(f"Stored received alert in database: {event_code} from {source_name}")
         except Exception as commit_exc:
             db.session.rollback()
-            # If the commit failed because the raw_audio_data column doesn't
-            # exist yet (migration not applied), retry without the audio blob
-            # so the alert record is not lost entirely.
+            # If the commit failed because a new column doesn't exist yet
+            # (migration not applied), retry with a minimal record that omits
+            # both `raw_audio_data` (added 2026-03-25) and `alert_source`
+            # (added 2026-04-01).  The original retry only cleared
+            # raw_audio_data but left alert_source in the INSERT, causing the
+            # retry to fail with the same "column does not exist" error and
+            # silently drop every alert record.
             err_str = str(commit_exc).lower()
-            if 'raw_audio_data' in err_str or 'column' in err_str:
+            if 'raw_audio_data' in err_str or 'alert_source' in err_str or 'column' in err_str:
                 logger.warning(
-                    "raw_audio_data column missing — storing alert without audio "
-                    "(run 'alembic upgrade head' to apply the migration): %s",
+                    "DB column missing in received_eas_alerts — storing alert without "
+                    "optional new columns (run 'alembic upgrade head' to apply pending "
+                    "migrations): %s",
                     commit_exc,
                 )
-                received_alert.raw_audio_data = None
-                db.session.add(received_alert)
+                # Build a fresh record that omits both new columns so SQLAlchemy
+                # does not include them in the INSERT at all.  Setting a column to
+                # None still puts NULL in the INSERT; only omitting it from the
+                # constructor leaves the column out of the generated SQL entirely.
+                minimal_alert = ReceivedEASAlert(
+                    received_at=received_alert.received_at,
+                    source_name=received_alert.source_name,
+                    # alert_source intentionally omitted — may not exist in DB
+                    raw_same_header=received_alert.raw_same_header,
+                    event_code=received_alert.event_code,
+                    event_name=received_alert.event_name,
+                    originator_code=received_alert.originator_code,
+                    originator_name=received_alert.originator_name,
+                    fips_codes=received_alert.fips_codes,
+                    issue_datetime=received_alert.issue_datetime,
+                    purge_datetime=received_alert.purge_datetime,
+                    callsign=received_alert.callsign,
+                    forwarding_decision=received_alert.forwarding_decision,
+                    forwarding_reason=received_alert.forwarding_reason,
+                    matched_fips_codes=received_alert.matched_fips_codes,
+                    generated_message_id=received_alert.generated_message_id,
+                    forwarded_at=received_alert.forwarded_at,
+                    decode_confidence=received_alert.decode_confidence,
+                    full_alert_data=received_alert.full_alert_data,
+                    # raw_audio_data intentionally omitted — may not exist in DB
+                )
+                db.session.add(minimal_alert)
                 db.session.commit()
                 logger.info(
-                    "Stored received alert (no audio) in database: %s from %s",
+                    "Stored received alert (degraded — run 'alembic upgrade head') "
+                    "in database: %s from %s",
                     event_code, source_name,
                 )
             else:
