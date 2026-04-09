@@ -729,10 +729,13 @@ class UnifiedEASMonitorService:
                         attention_skip / self._target_sample_rate,
                     )
 
-                # Always relay with the EBS 1050 Hz single tone regardless of
-                # what the originating station used; the relay generates its own
-                # attention signal so we don't re-play whatever came off the air.
-                alert_data['relay_tone_profile'] = '1050'
+                # Always relay with the standard EAS dual-tone (853+960 Hz, 8 s)
+                # regardless of what the originating station transmitted:
+                #   • NOAA sends 1050 Hz  → strip, replace with EAS dual-tone
+                #   • Sender sends EBS dual-tone → relay as EAS dual-tone
+                # The tone duration is fixed at 8 s per FCC §11.31(a).
+                alert_data['relay_tone_profile'] = 'attention'   # 853 + 960 Hz
+                alert_data['relay_tone_duration'] = 8.0
 
             except Exception as _exc:
                 logger.warning("Could not encode OTA narration audio: %s", _exc)

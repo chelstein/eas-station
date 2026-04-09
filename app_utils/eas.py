@@ -1805,12 +1805,17 @@ class EASAudioGenerator:
             samples.extend(silence)
             segment_samples['same'].extend(silence)
 
-        tone_duration = float(self.config.get('attention_tone_seconds', 8) or 8)
+        # relay_tone_duration overrides the configured value for OTA relays so
+        # the attention signal is always exactly 8 s regardless of station config.
+        if 'relay_tone_duration' in payload:
+            tone_duration = float(payload['relay_tone_duration'])
+        else:
+            tone_duration = float(self.config.get('attention_tone_seconds', 8) or 8)
         _tone_profile = str(payload.get('relay_tone_profile', 'attention')).strip().lower()
-        if _tone_profile in ('1050', '1050hz', 'ebs', 'single'):
+        if _tone_profile in ('1050', '1050hz', 'single'):
             _tone_freqs: tuple = (1050.0,)
         else:
-            _tone_freqs = (853.0, 960.0)
+            _tone_freqs = (853.0, 960.0)   # standard EAS dual-tone
         attention_samples = _generate_tone(_tone_freqs, tone_duration, self.sample_rate, amplitude)
         samples.extend(attention_samples)
         segment_samples['attention'].extend(attention_samples)

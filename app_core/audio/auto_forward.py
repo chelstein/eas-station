@@ -424,7 +424,8 @@ def auto_forward_ota_alert(
     fips_codes = alert_dict.get('location_codes', [])
     source_name = alert_dict.get('source_name', 'OTA')
     relay_audio_wav = alert_dict.get('relay_audio_wav')
-    relay_tone_profile = alert_dict.get('relay_tone_profile', '1050')  # default EBS 1050 Hz
+    relay_tone_profile = alert_dict.get('relay_tone_profile', 'attention')  # 853+960 Hz EAS dual-tone
+    relay_tone_duration = alert_dict.get('relay_tone_duration', 8.0)         # always 8 s
 
     result: Dict[str, Any] = {
         'forwarded': False,
@@ -545,9 +546,12 @@ def auto_forward_ota_alert(
     if relay_audio_wav:
         payload['relay_audio_wav_bytes'] = relay_audio_wav
 
-    # Relay always uses the EBS 1050 Hz single tone so the broadcaster
-    # generates its own attention signal rather than re-playing raw air audio.
+    # Relay always uses the EAS dual-tone (853+960 Hz, 8 s).  Both the NOAA
+    # 1050 Hz tone and any EBS dual-tone from the originating station are
+    # stripped from the captured narration audio; the broadcaster generates a
+    # fresh attention signal.
     payload['relay_tone_profile'] = relay_tone_profile
+    payload['relay_tone_duration'] = relay_tone_duration
 
     from app_utils.eas import EASBroadcaster
 
