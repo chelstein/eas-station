@@ -1806,7 +1806,12 @@ class EASAudioGenerator:
             segment_samples['same'].extend(silence)
 
         tone_duration = float(self.config.get('attention_tone_seconds', 8) or 8)
-        attention_samples = _generate_tone((853.0, 960.0), tone_duration, self.sample_rate, amplitude)
+        _tone_profile = str(payload.get('relay_tone_profile', 'attention')).strip().lower()
+        if _tone_profile in ('1050', '1050hz', 'ebs', 'single'):
+            _tone_freqs: tuple = (1050.0,)
+        else:
+            _tone_freqs = (853.0, 960.0)
+        attention_samples = _generate_tone(_tone_freqs, tone_duration, self.sample_rate, amplitude)
         samples.extend(attention_samples)
         segment_samples['attention'].extend(attention_samples)
 

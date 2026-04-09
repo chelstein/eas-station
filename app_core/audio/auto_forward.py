@@ -424,6 +424,7 @@ def auto_forward_ota_alert(
     fips_codes = alert_dict.get('location_codes', [])
     source_name = alert_dict.get('source_name', 'OTA')
     relay_audio_wav = alert_dict.get('relay_audio_wav')
+    relay_tone_profile = alert_dict.get('relay_tone_profile', '1050')  # default EBS 1050 Hz
 
     result: Dict[str, Any] = {
         'forwarded': False,
@@ -543,6 +544,10 @@ def auto_forward_ota_alert(
     # build_files() can relay it instead of synthesising new TTS.
     if relay_audio_wav:
         payload['relay_audio_wav_bytes'] = relay_audio_wav
+
+    # Relay always uses the EBS 1050 Hz single tone so the broadcaster
+    # generates its own attention signal rather than re-playing raw air audio.
+    payload['relay_tone_profile'] = relay_tone_profile
 
     from app_utils.eas import EASBroadcaster
 
