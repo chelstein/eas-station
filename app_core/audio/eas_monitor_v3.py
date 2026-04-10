@@ -94,6 +94,32 @@ from .broadcast_queue import BroadcastQueue
 logger = logging.getLogger(__name__)
 
 
+# ---------------------------------------------------------------------------
+# Ring-buffer helpers
+# ---------------------------------------------------------------------------
+
+def _zczc_ring_position(ring_total_now: int, sample_rate: int) -> int:
+    """Return the ring-buffer position to use as the ZCZC anchor point.
+
+    The streaming decoder fires the ZCZC callback at the END of burst 1
+    (after the last character of the header has been decoded).  Recording
+    from that point means only bursts 2 and 3 appear in the stored audio.
+
+    Back-tracking by 1.5 s ensures the full burst 1 — preamble (≈ 0.25 s)
+    plus message body (≈ 1.0–1.2 s) — is included, so all three bursts are
+    present in the stored recording and available for 2-of-3 voting.
+
+    Args:
+        ring_total_now: Monotonic ring sample counter at callback time.
+        sample_rate:    Ring buffer sample rate (typically 16 000 Hz).
+
+    Returns:
+        Adjusted ring position (never negative).
+    """
+    backtrack = int(1.5 * sample_rate)   # ≈ 24 000 samples @ 16 kHz
+    return max(0, ring_total_now - backtrack)
+
+
 # =============================================================================
 # Health Tracking
 # =============================================================================
@@ -660,7 +686,9 @@ class UnifiedEASMonitorService:
                         "New ZCZC from '%s' replaced un-EOM'd pending alert (%s → %s)",
                         effective_source, existing_event, new_event,
                     )
-                    self._zczc_ring_total[effective_source] = ring_total_now
+                    self._zczc_ring_total[effective_source] = _zczc_ring_position(
+                        ring_total_now, self._target_sample_rate
+                    )
                 else:
                     # Same event code — this is burst #2 or #3 of the same header
                     # transmission.  Update the decoded alert data but keep the ring
@@ -681,8 +709,14 @@ class UnifiedEASMonitorService:
                     alert_data['confidence'] = best_confidence
                     # (ring total intentionally NOT updated here)
             else:
-                # First burst for this source — record ring position.
-                self._zczc_ring_total[effective_source] = ring_total_now
+                # First burst for this source — record ring position, backed up by
+                # ~1.5 s so the full burst 1 (preamble ≈ 0.25 s + message ≈ 1.0 s)
+                # is included in the stored audio.  Without this back-track the
+                # callback fires at the END of burst 1, leaving only bursts 2 and 3
+                # in the captured recording.
+                self._zczc_ring_total[effective_source] = _zczc_ring_position(
+                    ring_total_now, self._target_sample_rate
+                )
             alert_data['_pending_since'] = time.time()
             self._pending_alerts[effective_source] = alert_data
 
