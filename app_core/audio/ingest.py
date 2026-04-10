@@ -600,6 +600,10 @@ class AudioIngestController:
         self._flask_app = flask_app  # Store Flask app for app context in background threads
         self._metadata_change_callback = None  # Applied to every source (current and future)
         self._source_alert_callback = None  # Optional: called on source events (restart/error/stop)
+        # Headers injected via inject_eas_test_signal() — decoded alerts whose
+        # raw_header matches an entry here are known-synthetic and get confidence=1.0.
+        self._synthetic_headers: set = set()
+        self._synthetic_headers_lock = threading.Lock()
 
         if enable_monitor:
             self._monitor_thread = threading.Thread(
@@ -819,6 +823,10 @@ class AudioIngestController:
         julian_day = now.timetuple().tm_yday
         timestamp = f"{julian_day:03d}{now:%H%M}"
         header = f"ZCZC-EAS-RWT-000000+0015-{timestamp}-EASTEST-"
+
+        # Register this header as synthetic so the monitor can report confidence=1.0.
+        with self._synthetic_headers_lock:
+            self._synthetic_headers.add(header)
 
         # Encode header bits and render FSK samples once; reuse for all 3 bursts.
         same_bits = encode_same_bits(header, include_preamble=True)
