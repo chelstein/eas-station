@@ -615,6 +615,24 @@ class UnifiedEASMonitorService:
         if isinstance(alert_data, dict):
             alert_data['source_name'] = effective_source
 
+        # If this alert was injected synthetically by inject_eas_test_signal(),
+        # the decoded signal is known-clean FSK — override confidence to 1.0.
+        if isinstance(alert_data, dict) and 'ZCZC' in raw_msg:
+            ctrl = self.audio_controller
+            synthetic_headers = getattr(ctrl, '_synthetic_headers', None)
+            synthetic_lock = getattr(ctrl, '_synthetic_headers_lock', None)
+            if synthetic_headers is not None and raw_msg.strip() in synthetic_headers:
+                alert_data['confidence'] = 1.0
+                if synthetic_lock is not None:
+                    with synthetic_lock:
+                        synthetic_headers.discard(raw_msg.strip())
+                else:
+                    synthetic_headers.discard(raw_msg.strip())
+                logger.debug(
+                    "Synthetic injection detected for '%s' — setting confidence=100%%",
+                    raw_msg[:60],
+                )
+
         if 'NNNN' in raw_msg:
             # EOM received — fire any pending alert for this source.
             self._on_eom_received(effective_source)
@@ -645,14 +663,22 @@ class UnifiedEASMonitorService:
                     self._zczc_ring_total[effective_source] = ring_total_now
                 else:
                     # Same event code — this is burst #2 or #3 of the same header
-                    # transmission.  Update the decoded alert data (later bursts may
-                    # be more accurate) but keep the ring position from burst #1 so
-                    # that ATTENTION_SKIP_SAMPLES is measured from the earliest
-                    # known point and we don't clip the narration start.
+                    # transmission.  Update the decoded alert data but keep the ring
+                    # position from burst #1 so that ATTENTION_SKIP_SAMPLES is
+                    # measured from the earliest known point and we don't clip the
+                    # narration start.
+                    # Preserve the highest confidence seen across all bursts so the
+                    # stored record reflects the best-quality decode, not the last one.
+                    existing_confidence = self._pending_alerts[effective_source].get('confidence', 0.0)
+                    new_confidence = alert_data.get('confidence', 0.0)
+                    best_confidence = max(existing_confidence, new_confidence)
                     logger.debug(
-                        "SAME burst #2/#3 from '%s' for %s — keeping ring position from burst #1",
+                        "SAME burst #2/#3 from '%s' for %s — "
+                        "confidence prev=%.1f%% new=%.1f%% best=%.1f%%",
                         effective_source, new_event,
+                        existing_confidence * 100, new_confidence * 100, best_confidence * 100,
                     )
+                    alert_data['confidence'] = best_confidence
                     # (ring total intentionally NOT updated here)
             else:
                 # First burst for this source — record ring position.

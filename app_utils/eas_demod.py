@@ -497,6 +497,13 @@ class SAMEDemodulatorCore:
                     self._update_endec_from_evidence()
                 self.synced = True
                 self.byte_counter = 0
+                # Reset per-burst confidence window.  After a burst completes,
+                # synced stays True through the inter-burst silence, causing
+                # ~520 zero-confidence samples (≈1 s × 520.83 baud) to
+                # accumulate before the next preamble arrives.  Clearing here
+                # ensures each burst's confidence is measured only against its
+                # own preamble + message bits — not the silence that preceded it.
+                self.bit_confidences = []
             elif self.synced:
                 self.byte_counter += 1
                 if self.byte_counter == 8:
