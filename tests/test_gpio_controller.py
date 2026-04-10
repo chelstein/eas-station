@@ -625,6 +625,18 @@ def test_tower_light_start_incoming_alert_blink():
     assert _TOWER_CMD_RED_OFF in ser.written
 
 
+def test_tower_light_start_incoming_alert_disabled_sends_nothing():
+    """start_incoming_alert should send no commands when incoming_uses_yellow=False."""
+    ctrl, ser = _make_tower_ctrl(
+        TowerLightConfig(serial_port="/dev/null", blink_on_alert=True, incoming_uses_yellow=False)
+    )
+    ser.written.clear()
+
+    ctrl.start_incoming_alert()
+
+    assert len(ser.written) == 0
+
+
 def test_tower_light_end_alert_returns_to_standby():
     """end_alert should restore the standby (green on) state."""
     ctrl, ser = _make_tower_ctrl()

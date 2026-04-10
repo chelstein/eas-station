@@ -70,6 +70,53 @@ def _get_oled_enabled_status():
 
 
 _BROADCAST_STATE_KEY = 'eas:broadcast_active'
+_INCOMING_STATE_KEY = 'eas:incoming_alert'
+
+
+def set_incoming_alert(event_code: str = '') -> None:
+    """Record in Redis that an alert has been received but broadcast has not started.
+
+    Called when an alert is first processed so hardware indicators (tower light)
+    can show a pre-broadcast "incoming" state (e.g. yellow blink) while audio
+    is being generated and the playout decision is being made.  The key carries
+    a short TTL so stale entries self-expire if the broadcast never starts.
+    """
+    try:
+        from app_core.redis_client import get_redis_client
+        client = get_redis_client()
+        if client is None:
+            return
+        payload = json.dumps({'incoming': True, 'event_code': event_code or '', 'ts': time.time()})
+        client.set(_INCOMING_STATE_KEY, payload, ex=300)  # 5-minute safety TTL
+    except Exception:
+        pass
+
+
+def clear_incoming_alert() -> None:
+    """Remove the incoming alert marker from Redis."""
+    try:
+        from app_core.redis_client import get_redis_client
+        client = get_redis_client()
+        if client is None:
+            return
+        client.delete(_INCOMING_STATE_KEY)
+    except Exception:
+        pass
+
+
+def get_incoming_alert_state() -> dict:
+    """Return current incoming-alert state dict, or ``{'incoming': False}`` if none."""
+    try:
+        from app_core.redis_client import get_redis_client
+        client = get_redis_client()
+        if client is None:
+            return {'incoming': False}
+        raw = client.get(_INCOMING_STATE_KEY)
+        if raw is None:
+            return {'incoming': False}
+        return json.loads(raw)
+    except Exception:
+        return {'incoming': False}
 
 
 def set_broadcast_active(
@@ -99,6 +146,8 @@ def set_broadcast_active(
         # TTL = duration + 60 s safety margin so stale entries self-expire
         ttl = max(60, int(duration_seconds) + 60)
         client.set(_BROADCAST_STATE_KEY, payload, ex=ttl)
+        # Broadcast starting supersedes the incoming-alert state
+        client.delete(_INCOMING_STATE_KEY)
     except Exception:
         pass
 
@@ -2537,6 +2586,12 @@ class EASBroadcaster:
         alert_identifier = getattr(alert, 'identifier', None) or payload.get('identifier')
         forwarding_decision = str(payload.get('forwarding_decision', '') or '').lower()
         is_forwarded = forwarding_decision == 'forwarded' or bool(payload.get('forwarded', False))
+
+        # Signal hardware indicators (tower light) that an alert has arrived but
+        # broadcast has not started yet.  The hardware service polls this key and
+        # calls start_incoming_alert() on the tower light controller.
+        set_incoming_alert(event_code=event_code or '')
+
         behavior_manager = self.gpio_behavior_manager
         if behavior_manager:
             behavior_manager.trigger_incoming_alert(
