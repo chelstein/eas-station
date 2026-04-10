@@ -2571,7 +2571,12 @@ class TowerLightController:
         """Signal that an alert has been received but playout has not started.
 
         Shows yellow (blink or solid) to indicate an incoming alert decision.
+        Does nothing when :attr:`TowerLightConfig.incoming_uses_yellow` is
+        ``False``.
         """
+        if not self.config.incoming_uses_yellow:
+            return
+
         with self._lock:
             yellow_state = "blink" if self.config.blink_on_alert else "on"
             for cmd in (_TOWER_CMD_GRN_OFF, _TOWER_CMD_RED_OFF):

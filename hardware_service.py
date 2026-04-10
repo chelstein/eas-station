@@ -2494,24 +2494,32 @@ def run_api_server():
         logger.error(f"Error running API server: {e}", exc_info=True)
 
 
-def _update_alert_indicators(broadcast_was_active: bool) -> bool:
+def _update_alert_indicators(
+    broadcast_was_active: bool,
+    incoming_was_active: bool,
+) -> tuple:
     """Drive tower light and NeoPixel controllers based on broadcast state.
 
-    Reads the current ``eas:broadcast_active`` Redis key and calls the
-    appropriate alert-lifecycle methods on any configured hardware indicator
-    controllers whenever the broadcast state changes.
+    Reads the current ``eas:broadcast_active`` and ``eas:incoming_alert`` Redis
+    keys and calls the appropriate alert-lifecycle methods on any configured
+    hardware indicator controllers whenever the state changes.
 
-    Returns the NEW broadcast-active boolean so the caller can track state
-    across loop iterations.
+    The tower light follows a three-state machine:
+      idle → incoming (yellow) → active broadcast (red) → idle (green)
+
+    Returns ``(broadcast_active, incoming_active)`` so the caller can track
+    state across loop iterations.
     """
     try:
-        from app_utils.eas import get_broadcast_state
+        from app_utils.eas import get_broadcast_state, get_incoming_alert_state
         state = get_broadcast_state()
         broadcast_active = bool(state.get('active', False))
+        incoming_state = get_incoming_alert_state()
+        incoming_active = bool(incoming_state.get('incoming', False))
     except Exception:
-        return broadcast_was_active  # Leave light in current state on error
+        return broadcast_was_active, incoming_was_active  # Leave light in current state on error
 
-    # Transition: idle → active
+    # Transition: * → active broadcast (broadcast takes priority over incoming)
     if broadcast_active and not broadcast_was_active:
         if _tower_light_controller and _tower_light_controller.is_available:
             try:
@@ -2524,7 +2532,7 @@ def _update_alert_indicators(broadcast_was_active: bool) -> bool:
             except Exception as exc:
                 logger.warning("NeoPixel start_alert failed: %s", exc)
 
-    # Transition: active → idle
+    # Transition: active → idle (broadcast ended)
     elif not broadcast_active and broadcast_was_active:
         if _tower_light_controller and _tower_light_controller.is_available:
             try:
@@ -2537,7 +2545,23 @@ def _update_alert_indicators(broadcast_was_active: bool) -> bool:
             except Exception as exc:
                 logger.warning("NeoPixel end_alert failed: %s", exc)
 
-    return broadcast_active
+    # Transition: idle → incoming (alert received, broadcast not yet started)
+    elif not broadcast_active and incoming_active and not incoming_was_active:
+        if _tower_light_controller and _tower_light_controller.is_available:
+            try:
+                _tower_light_controller.start_incoming_alert()
+            except Exception as exc:
+                logger.warning("Tower light start_incoming_alert failed: %s", exc)
+
+    # Transition: incoming → idle (alert rejected or expired without broadcast)
+    elif not broadcast_active and not incoming_active and incoming_was_active:
+        if _tower_light_controller and _tower_light_controller.is_available:
+            try:
+                _tower_light_controller.end_alert()
+            except Exception as exc:
+                logger.warning("Tower light end_alert (incoming expired) failed: %s", exc)
+
+    return broadcast_active, incoming_active
 
 
 def health_check_loop():
@@ -2548,6 +2572,7 @@ def health_check_loop():
     last_metrics_publish = 0
     metrics_interval = 5  # Publish metrics every 5 seconds
     broadcast_was_active = False  # Track last-known broadcast state
+    incoming_was_active = False   # Track last-known incoming-alert state
 
     while _running:
         try:
@@ -2556,7 +2581,9 @@ def health_check_loop():
             # Drive alert indicators (tower light, NeoPixel) based on
             # broadcast state; runs every loop iteration (1 s resolution).
             if _redis_client and (_tower_light_controller or _neopixel_controller):
-                broadcast_was_active = _update_alert_indicators(broadcast_was_active)
+                broadcast_was_active, incoming_was_active = _update_alert_indicators(
+                    broadcast_was_active, incoming_was_active
+                )
 
             # Publish metrics periodically
             if current_time - last_metrics_publish >= metrics_interval:
