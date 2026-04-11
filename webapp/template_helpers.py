@@ -44,6 +44,8 @@ def register(app: Flask) -> None:
 
     app.add_template_global(utc_now, name="current_time")
     app.add_template_global(local_now, name="local_current_time")
+    app.add_template_global(min, name="min")
+    app.add_template_global(max, name="max")
 
 
 def _nl2br_filter(text: str | None) -> str:
