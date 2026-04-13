@@ -331,6 +331,7 @@ def load_eas_config(base_path: Optional[str] = None, db_session=None) -> Dict[st
     db_attention_tone_seconds = None
     db_max_activation_seconds = None
     db_audio_player = None
+    db_endec_fingerprint = None
     db_forwarded_event_codes: List[str] = []
     try:
         from app_core.models import EASSettings
@@ -343,6 +344,7 @@ def load_eas_config(base_path: Optional[str] = None, db_session=None) -> Dict[st
             db_attention_tone_seconds = eas_settings.attention_tone_seconds
             db_max_activation_seconds = eas_settings.max_activation_seconds
             db_audio_player = eas_settings.audio_player
+            db_endec_fingerprint = eas_settings.endec_fingerprint
             db_forwarded_event_codes = list(eas_settings.forwarded_event_codes or [])
             load_logger.info(
                 'EASSettings loaded from DB: originator=%s station_id=%s broadcast_enabled=%s',
@@ -366,6 +368,7 @@ def load_eas_config(base_path: Optional[str] = None, db_session=None) -> Dict[st
                 db_attention_tone_seconds = eas_settings.attention_tone_seconds
                 db_max_activation_seconds = eas_settings.max_activation_seconds
                 db_audio_player = eas_settings.audio_player
+                db_endec_fingerprint = eas_settings.endec_fingerprint
                 db_forwarded_event_codes = list(eas_settings.forwarded_event_codes or [])
                 load_logger.info(
                     'EASSettings loaded from DB (direct session): originator=%s station_id=%s broadcast_enabled=%s',
@@ -394,6 +397,9 @@ def load_eas_config(base_path: Optional[str] = None, db_session=None) -> Dict[st
         'output_dir': _ensure_directory(output_dir),
         'web_subdir': web_subdir,
         'audio_player_cmd': os.getenv('EAS_AUDIO_PLAYER', '').strip() or (db_audio_player or ''),
+        'endec_fingerprint': (
+            db_endec_fingerprint if db_endec_fingerprint is not None else True
+        ),
         'attention_tone_seconds': float(
             os.getenv('EAS_ATTENTION_TONE_SECONDS')
             or (db_attention_tone_seconds if db_attention_tone_seconds is not None else 8)

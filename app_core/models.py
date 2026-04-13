@@ -1281,6 +1281,9 @@ class EASSettings(db.Model):
     audio_player = db.Column(db.String(255), nullable=False, default='aplay')
     # Command to play audio (aplay, paplay, etc.)
 
+    endec_fingerprint = db.Column(db.Boolean, nullable=False, default=True)
+    # Append 3 × 0xAA trill bytes after each SAME burst to fingerprint this station
+
     # ========================================================================
     # Authorized Broadcast Areas
     # ========================================================================
@@ -1313,6 +1316,7 @@ class EASSettings(db.Model):
             "max_activation_seconds": self.max_activation_seconds,
             "sample_rate": self.sample_rate,
             "audio_player": self.audio_player,
+            "endec_fingerprint": self.endec_fingerprint,
             "authorized_fips_codes": list(self.authorized_fips_codes or []),
             "authorized_event_codes": list(self.authorized_event_codes or []),
             "forwarded_event_codes": list(self.forwarded_event_codes or []),

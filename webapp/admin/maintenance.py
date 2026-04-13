@@ -1486,6 +1486,10 @@ def admin_eas_settings():
             if audio_player:
                 settings.audio_player = audio_player
 
+        # Update station fingerprint toggle
+        if "endec_fingerprint" in payload:
+            settings.endec_fingerprint = bool(payload["endec_fingerprint"])
+
         # Update authorized FIPS codes
         if "authorized_fips_codes" in payload:
             fips = payload["authorized_fips_codes"]
