@@ -48,6 +48,25 @@ def same_preamble_bits(repeats: int = SAME_PREAMBLE_REPETITIONS) -> List[int]:
     return bits
 
 
+def encode_terminator_bits(byte_val: int, count: int) -> List[int]:
+    """Encode ``count`` copies of ``byte_val`` as 8-bit LSB-first bitstreams.
+
+    Used to append ENDEC-identifying terminator bytes immediately after each
+    SAME burst, before the inter-burst silence.  Encoding matches the standard
+    SAME data encoding per FCC 47 CFR §11.31 (LSB first, no framing bits).
+
+    Example — EAS Station fingerprint (3 × 0xAA = 10101010):
+        bits: 0,1,0,1,0,1,0,1 × 3  →  24 alternating space/mark pulses
+        sound: rapid trill at ~521 Hz modulation rate (~46 ms)
+    """
+    bits: List[int] = []
+    byte_val = byte_val & 0xFF
+    for _ in range(count):
+        for i in range(8):
+            bits.append((byte_val >> i) & 1)
+    return bits
+
+
 def encode_same_bits(
     message: str,
     *,
@@ -125,5 +144,6 @@ __all__ = [
     "SAME_PREAMBLE_REPETITIONS",
     "same_preamble_bits",
     "encode_same_bits",
+    "encode_terminator_bits",
     "generate_fsk_samples",
 ]

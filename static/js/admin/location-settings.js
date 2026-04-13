@@ -1012,6 +1012,10 @@ function populateEasForm(settings) {
     if (outputDirInput) {
         outputDirInput.value = settings.output_dir || 'static/eas_messages';
     }
+    const endecFingerprintCheckbox = document.getElementById('easEndecFingerprint');
+    if (endecFingerprintCheckbox) {
+        endecFingerprintCheckbox.checked = settings.endec_fingerprint !== false;
+    }
     if (authorizedEventsTextarea) {
         authorizedEventsTextarea.value = (settings.authorized_event_codes || []).join('\n');
     }
@@ -1151,6 +1155,7 @@ async function handleEasSettingsSubmit(e) {
         attention_tone_seconds: parseInt(document.getElementById('easAttentionTone')?.value, 10) || 8,
         audio_player: document.getElementById('easAudioPlayer')?.value?.trim() || 'aplay',
         output_dir: document.getElementById('easOutputDir')?.value?.trim() || 'static/eas_messages',
+        endec_fingerprint: document.getElementById('easEndecFingerprint')?.checked ?? true,
         authorized_event_codes: parseNewlineValues(document.getElementById('easAuthorizedEvents')?.value || ''),
         forwarded_event_codes: (document.getElementById('easForwardedEventCodes')?.value || '')
             .split(',').map(s => s.trim().toUpperCase()).filter(Boolean),

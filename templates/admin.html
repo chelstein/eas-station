@@ -854,6 +854,14 @@
                                     <input type="text" class="form-control" id="easOutputDir" name="output_dir" placeholder="static/eas_messages">
                                     <small class="text-muted">Directory for generated EAS audio files</small>
                                 </div>
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold">Station Fingerprint</label>
+                                    <div class="form-check form-switch mt-1">
+                                        <input class="form-check-input" type="checkbox" id="easEndecFingerprint" name="endec_fingerprint">
+                                        <label class="form-check-label" for="easEndecFingerprint">Enable trill fingerprint</label>
+                                    </div>
+                                    <small class="text-muted">Appends a distinctive trill after each SAME burst to identify this station</small>
+                                </div>
 
                                 <!-- Note about FIPS codes -->
                                 <div class="col-12">

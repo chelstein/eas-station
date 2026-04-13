@@ -417,6 +417,7 @@ from app_utils.eas_demod import (
     ENDEC_MODE_SAGE_3644,
     ENDEC_MODE_SAGE_1822,
     ENDEC_MODE_TRILITHIC,
+    ENDEC_MODE_EAS_STATION,
 )
 
 
@@ -662,4 +663,36 @@ def test_dll_endec_no_regression_on_plain_audio() -> None:
     assert len(core.messages) >= 1, "DLL must still decode plain audio after ENDEC refactor"
     assert any(header in m for m in core.messages), (
         f"Header not found in decoded messages: {core.messages!r}"
+    )
+
+
+def test_detect_endec_eas_station_aa_bytes() -> None:
+    """KR8MER EAS Station appends 3 × 0xAA after each burst → EAS_STATION."""
+    mode = detect_endec_mode(
+        ["ZCZC-WXR-TOR-029015+0030-0181500-KOAX/NWS-"],
+        [],
+        terminator_runs=[(0xAA, 3)],
+    )
+    assert mode == ENDEC_MODE_EAS_STATION, f"Expected EAS_STATION, got {mode}"
+
+
+def test_dll_endec_detection_eas_station_integration() -> None:
+    """SAMEDemodulatorCore must detect KR8MER EAS Station from 3 × 0xAA terminator bytes.
+
+    The 0xAA trill fingerprint produces an alternating mark/space FSK pattern.
+    The DLL must capture these bytes in post-message mode and report EAS_STATION
+    as the detected ENDEC — and the SAME message must decode correctly.
+    """
+    header = "ZCZC-WXR-TOR-029015+0030-0181500-KOAX/NWS-"
+    samples = _make_fsk_audio_with_terminator(
+        header, b"\xaa\xaa\xaa", sample_rate=44100
+    )
+
+    core = SAMEDemodulatorCore(44100, apply_bandpass=True)
+    core.process_samples(samples)
+
+    assert len(core.messages) >= 1, "DLL must decode at least one burst"
+    assert core.endec_mode == ENDEC_MODE_EAS_STATION, (
+        f"Expected EAS_STATION from 3×0xAA terminator bytes, got {core.endec_mode!r}. "
+        f"terminator_runs={core._all_terminator_runs!r}"
     )
