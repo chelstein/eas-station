@@ -157,7 +157,12 @@
                     {% if alert.fips_codes %}
                     <div class="d-flex flex-wrap gap-2 mb-2">
                         {% for code in alert.fips_codes %}
-                        <span class="badge bg-info text-dark">{{ code }}</span>
+                        <span class="d-inline-flex flex-column align-items-center badge bg-info text-dark py-1 px-2" style="font-weight:normal;">
+                            <span class="fw-bold font-monospace">{{ code }}</span>
+                            {% if fips_names and fips_names.get(code) %}
+                            <span style="font-size:0.7em; opacity:0.85;">{{ fips_names[code] }}</span>
+                            {% endif %}
+                        </span>
                         {% endfor %}
                     </div>
                     {% else %}
@@ -168,7 +173,12 @@
                         <small class="text-muted">Matched configured codes:</small>
                         <div class="d-flex flex-wrap gap-2 mt-1">
                             {% for code in alert.matched_fips_codes %}
-                            <span class="badge bg-success">{{ code }}</span>
+                            <span class="d-inline-flex flex-column align-items-center badge bg-success py-1 px-2" style="font-weight:normal;">
+                                <span class="fw-bold font-monospace">{{ code }}</span>
+                                {% if fips_names and fips_names.get(code) %}
+                                <span style="font-size:0.7em; opacity:0.85;">{{ fips_names[code] }}</span>
+                                {% endif %}
+                            </span>
                             {% endfor %}
                         </div>
                     </div>
