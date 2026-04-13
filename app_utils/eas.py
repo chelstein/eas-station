@@ -1401,15 +1401,23 @@ def _generate_silence(duration: float, sample_rate: int) -> List[int]:
 
 
 def _generate_station_terminator_samples(amplitude: float, sample_rate: int) -> List[int]:
-    """Generate the KR8MER EAS Station FSK fingerprint: 3 × 0xAA terminator bytes.
+    """Generate the KR8MER EAS Station callsign fingerprint: bytes 'K','R','8' (0x4B 0x52 0x38).
 
-    0xAA (10101010 binary) alternates between space (1562 Hz) and mark (2083 Hz)
-    on every bit, producing a ~46 ms trill appended after each SAME burst.
-    Other ENDEC decoders gracefully exit post-message mode on the first 0xAA byte
-    (the message is already decoded at that point) while our own decoder
-    recognises the run and reports ENDEC_MODE_EAS_STATION.
+    The three ASCII bytes of the callsign prefix are transmitted as FSK immediately
+    after each SAME burst.  Because EAS-Tools only recognises 0x00 and 0xFF as
+    terminator bytes, third-party decoders gracefully exit post-message mode on
+    the first unknown byte — the message is already fully decoded at that point.
+    Our own decoder captures all three and reports ENDEC_MODE_EAS_STATION when
+    the complete K+R+8 sequence is present.
+
+    Each byte produces a distinct FSK pattern:
+      'K' 0x4B = 01001011 → mark mark space mark space space mark space
+      'R' 0x52 = 01010010 → space mark space space mark space mark space
+      '8' 0x38 = 00111000 → space space space mark mark mark space space
     """
-    bits = encode_terminator_bits(0xAA, 3)
+    bits: List[int] = []
+    for byte_val in (0x4B, 0x52, 0x38):   # K, R, 8
+        bits.extend(encode_terminator_bits(byte_val, 1))
     return generate_fsk_samples(
         bits,
         sample_rate=sample_rate,

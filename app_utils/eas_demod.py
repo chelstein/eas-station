@@ -122,7 +122,7 @@ def detect_endec_mode(
        - SAGE ANALOG 1822:           1 × 0xFF per burst
        - SAGE DIGITAL 3644:          3 × 0xFF per burst  (+ leading 0x00 on 1st burst)
        - DEFAULT/DASDEC, TRILITHIC:  no terminator bytes
-       - KR8MER EAS Station:         3 × 0xAA per burst (alternating trill fingerprint)
+       - KR8MER EAS Station:         'K','R','8' (0x4B 0x52 0x38) per burst — callsign fingerprint
 
     2. **Leading 0x00 before preamble** — SAGE DIGITAL 3644 prepends one 0x00
        byte before the 16-byte preamble on the first burst.
@@ -185,15 +185,19 @@ def detect_endec_mode(
                 else:
                     votes[ENDEC_MODE_SAGE_1822] += 1.5
                     votes[ENDEC_MODE_SAGE_3644] += 1.5
-            elif byte_val == 0xAA:
-                # 0xAA terminator → KR8MER EAS Station trill fingerprint.
-                # 0xAA (10101010 binary) produces an alternating space/mark
-                # pattern in FSK, creating a distinctive trill sound.
-                # Three bytes is the canonical run length for this station.
-                if run_length >= 3:
-                    votes[ENDEC_MODE_EAS_STATION] += 4.0
-                else:
-                    votes[ENDEC_MODE_EAS_STATION] += run_length * 1.0
+            elif byte_val in (0x4B, 0x52, 0x38):
+                # KR8MER EAS Station callsign bytes: 'K' (0x4B), 'R' (0x52), '8' (0x38).
+                # Each arrives as a separate run of 1; voting is done below once
+                # all runs are collected (see post-loop KR8 sequence check).
+                pass
+
+        # KR8 callsign sequence check: all three bytes must be present.
+        # EAS-Tools only recognises 0x00 and 0xFF, so these bytes are completely
+        # invisible to third-party decoders — they simply exit post-message mode
+        # gracefully.  The combination of all three is unique to this station.
+        run_byte_set = {bv for bv, _ in terminator_runs}
+        if {0x4B, 0x52, 0x38}.issubset(run_byte_set):   # 'K', 'R', '8'
+            votes[ENDEC_MODE_EAS_STATION] += 6.0
 
     # 2. Leading null byte (SAGE DIGITAL 3644 specific signature)
     if leading_null_detected:
@@ -531,7 +535,7 @@ class SAMEDemodulatorCore:
                         # FCC §11.31 encoding appends a trailing \r after the header,
                         # which must be ignored here to avoid prematurely exiting
                         # post-message capture before ENDEC terminator bytes arrive.
-                        if byte_val in (0x00, 0xFF, 0xAA):
+                        if byte_val in (0x00, 0xFF, 0x4B, 0x52, 0x38):  # known + KR8 callsign
                             if self._terminator_byte is None:
                                 self._terminator_byte = byte_val
                                 self._terminator_run = 1
