@@ -666,35 +666,25 @@ def test_dll_endec_no_regression_on_plain_audio() -> None:
     )
 
 
-def test_detect_endec_eas_station_kr8_sequence() -> None:
-    """KR8MER EAS Station appends 'K','R','8' callsign bytes → EAS_STATION."""
+def test_detect_endec_eas_station_bb_bytes() -> None:
+    """KR8MER EAS Station appends 3 × 0xBB after each burst → EAS_STATION."""
     mode = detect_endec_mode(
         ["ZCZC-WXR-TOR-029015+0030-0181500-KOAX/NWS-"],
         [],
-        terminator_runs=[(0x4B, 1), (0x52, 1), (0x38, 1)],  # K, R, 8
+        terminator_runs=[(0xBB, 3)],
     )
     assert mode == ENDEC_MODE_EAS_STATION, f"Expected EAS_STATION, got {mode}"
 
 
-def test_detect_endec_eas_station_partial_sequence_not_matched() -> None:
-    """Only a subset of the KR8 sequence must NOT match EAS_STATION."""
-    mode = detect_endec_mode(
-        ["ZCZC-WXR-TOR-029015+0030-0181500-KOAX/NWS-"],
-        [],
-        terminator_runs=[(0x4B, 1), (0x52, 1)],  # K, R only — missing '8'
-    )
-    assert mode != ENDEC_MODE_EAS_STATION, f"Partial KR8 should not match EAS_STATION, got {mode}"
-
-
 def test_dll_endec_detection_eas_station_integration() -> None:
-    """SAMEDemodulatorCore must detect KR8MER EAS Station from 'K','R','8' callsign bytes.
+    """SAMEDemodulatorCore must detect KR8MER EAS Station from 3 × 0xBB terminator bytes.
 
-    The DLL must capture all three bytes in post-message mode and report EAS_STATION
-    when the complete K+R+8 sequence is present — and the SAME message must decode correctly.
+    The DLL must capture these bytes in post-message mode and report EAS_STATION —
+    and the SAME message must decode correctly.
     """
     header = "ZCZC-WXR-TOR-029015+0030-0181500-KOAX/NWS-"
     samples = _make_fsk_audio_with_terminator(
-        header, b"\x4b\x52\x38", sample_rate=44100  # K, R, 8
+        header, b"\xbb\xbb\xbb", sample_rate=44100
     )
 
     core = SAMEDemodulatorCore(44100, apply_bandpass=True)
@@ -702,6 +692,6 @@ def test_dll_endec_detection_eas_station_integration() -> None:
 
     assert len(core.messages) >= 1, "DLL must decode at least one burst"
     assert core.endec_mode == ENDEC_MODE_EAS_STATION, (
-        f"Expected EAS_STATION from KR8 callsign bytes, got {core.endec_mode!r}. "
+        f"Expected EAS_STATION from 3×0xBB terminator bytes, got {core.endec_mode!r}. "
         f"terminator_runs={core._all_terminator_runs!r}"
     )
