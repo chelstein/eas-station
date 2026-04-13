@@ -1,66 +1,178 @@
-COMMERCIAL LICENSE AGREEMENT
-EAS Station Software
+COMMERCIAL SOFTWARE LICENSE AGREEMENT
+EAS Station
 
 Copyright (c) 2025-2026 Timothy Kramer (KR8MER)
 
-PROPRIETARY SOFTWARE LICENSE
+IMPORTANT: This Commercial License Agreement ("Agreement") is a legal contract between the
+licensor identified below ("Licensor") and the customer purchasing or otherwise accepting the
+commercial license ("Licensee"). By installing, copying, modifying, distributing, or using the
+Software under this Agreement, Licensee agrees to be bound by these terms.
 
-This is a commercial license agreement for EAS Station software.
+1. DEFINITIONS
 
-1. GRANT OF LICENSE
-   Subject to payment of applicable license fees, Licensor grants Licensee a
-   non-exclusive, non-transferable license to use, modify, and deploy this
-   software without the copyleft obligations of the AGPL v3 license.
+1.1 "Software" means the EAS Station software, source code, object code, related scripts,
+configuration templates, and accompanying documentation made available by Licensor.
 
-2. PERMITTED USE
-   - Internal use within Licensee's organization
-   - Modification for internal purposes
-   - Deployment without source code disclosure requirements
-   - Integration into proprietary systems
+1.2 "Licensed Deployment" means each production, staging, development, or test installation of the
+Software operated by or for Licensee, unless otherwise defined in an executed order form.
+
+1.3 "Order Form" means a quote, invoice, purchase order, or other writing accepted by both parties
+that specifies commercial terms (including fees, deployment count, term, and support scope).
+
+2. LICENSE GRANT
+
+2.1 Subject to this Agreement and full payment of applicable fees, Licensor grants Licensee a
+non-exclusive, non-transferable, non-sublicensable license to:
+  (a) install and use the Software for internal business purposes;
+  (b) modify the Software for Licensee's internal use; and
+  (c) deploy the Software without AGPL copyleft obligations.
+
+2.2 License scope (number of deployments, sites, or users) is defined in the applicable Order Form.
+Use beyond that scope requires additional licensing.
 
 3. RESTRICTIONS
-   - May not redistribute or resell the software
-   - May not remove or modify copyright notices
-   - May not sublicense to third parties
-   - May not use "EAS Station" trademark without written permission
 
-4. PRICING
-   Contact: sales@easstation.com
+Licensee must not, except as expressly authorized in this Agreement or an Order Form:
+  (a) redistribute, resell, host for unaffiliated third parties, or otherwise commercialize access to the
+      Software as a service bureau without written permission;
+  (b) remove or alter copyright, license, or proprietary notices;
+  (c) sublicense, assign, transfer, lease, or lend the Software except as permitted under Section 14;
+  (d) represent that Licensor endorses Licensee or Licensee's modified version;
+  (e) use Licensor trademarks except as explicitly allowed in writing.
 
-   License tiers available:
-   - Single Station License
-   - Multi-Station License (up to 10 installations)
-   - Enterprise License (unlimited installations)
-   - OEM/Integration License (redistribution rights)
-   - Complete Acquisition (all IP and assets)
+4. FEES, PAYMENT, AND TAXES
 
-   Pricing covers the software license only; hardware acquisition and deployment costs are not included.
+4.1 Fees are specified in the Order Form.
 
-   For detailed pricing and terms, contact sales@easstation.com
+4.2 Unless otherwise stated in the Order Form, invoices are due within thirty (30) days of invoice date.
 
-5. SUPPORT AND MAINTENANCE
-   Commercial licenses include:
-   - Priority technical support
-   - Security updates and patches
-   - Version upgrades
-   - Custom integration assistance
+4.3 Late amounts may accrue interest at the lesser of 1.5% per month or the maximum rate permitted
+by applicable law.
 
-6. WARRANTY DISCLAIMER
-   SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND.
+4.4 Licensee is responsible for all applicable taxes, duties, and levies (excluding taxes based solely on
+Licensor's net income).
 
-7. LIMITATION OF LIABILITY
-   IN NO EVENT SHALL LICENSOR BE LIABLE FOR ANY DAMAGES ARISING FROM USE.
+5. AUDIT RIGHTS
 
-8. TERM AND TERMINATION
-   License is perpetual unless terminated for breach.
-   Upon termination, Licensee must cease all use and destroy all copies.
+Upon reasonable written notice, and no more than once per twelve (12) months, Licensor may verify
+Licensee's compliance with deployment and usage limits. Audits must occur during normal business
+hours and in a manner that minimizes operational disruption. If under-licensing exceeds five percent
+(5%), Licensee will promptly pay applicable true-up fees.
 
-9. GOVERNING LAW
-   This agreement shall be governed by the laws of [Your State/Country].
+6. SUPPORT AND MAINTENANCE
 
-To obtain a commercial license, contact:
-Timothy Kramer (KR8MER)
+6.1 Any support, maintenance, update cadence, response targets, or service levels are provided only as
+specified in the applicable Order Form or support addendum.
+
+6.2 Unless expressly included in writing, Licensor is not obligated to provide custom development,
+on-site support, integrations, or regulatory consulting.
+
+7. OWNERSHIP AND FEEDBACK
+
+7.1 Licensor retains all right, title, and interest in and to the Software, including all intellectual property
+rights, except for the limited license rights expressly granted.
+
+7.2 Licensee retains ownership of Licensee data and independently created materials.
+
+7.3 Unless otherwise agreed in writing, any suggestions, enhancement ideas, or feedback provided by
+Licensee may be used by Licensor without restriction or compensation.
+
+8. REGULATORY STATUS AND SAFETY LIMITATIONS
+
+8.1 The Software is experimental and is not represented as FCC-certified EAS encoder/decoder equipment.
+
+8.2 THE SOFTWARE IS NOT APPROVED FOR LIFE-SAFETY, MISSION-CRITICAL, OR REGULATORY-
+MANDATED ALERTING USE. LICENSEE IS SOLELY RESPONSIBLE FOR COMPLIANCE WITH FCC,
+STATE, LOCAL, AND OTHER APPLICABLE REGULATORY REQUIREMENTS.
+
+8.3 Licensor makes no representation that use of the Software satisfies certification obligations under
+47 C.F.R. Part 11 or any equivalent regulatory framework.
+
+9. EXPORT AND SANCTIONS COMPLIANCE
+
+Licensee agrees to comply with all applicable export control, sanctions, and trade laws, including
+United States laws administered by OFAC, BIS, and other competent authorities. Licensee must not
+export, re-export, transfer, or make the Software available in violation of applicable law.
+
+10. WARRANTIES AND DISCLAIMER
+
+10.1 Licensor warrants that it has the right to license the Software under this Agreement.
+
+10.2 EXCEPT FOR THE LIMITED WARRANTY IN SECTION 10.1, THE SOFTWARE AND ANY SERVICES
+ARE PROVIDED "AS IS" AND "AS AVAILABLE," WITHOUT WARRANTIES OF ANY KIND, WHETHER
+EXPRESS, IMPLIED, STATUTORY, OR OTHERWISE, INCLUDING IMPLIED WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND NON-INFRINGEMENT.
+
+11. LIMITATION OF LIABILITY
+
+11.1 TO THE MAXIMUM EXTENT PERMITTED BY LAW, LICENSOR SHALL NOT BE LIABLE FOR ANY
+INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY, OR PUNITIVE DAMAGES, OR FOR
+LOST PROFITS, REVENUE, DATA, GOODWILL, OR BUSINESS INTERRUPTION.
+
+11.2 LICENSOR'S AGGREGATE LIABILITY ARISING OUT OF OR RELATED TO THIS AGREEMENT SHALL
+NOT EXCEED THE TOTAL FEES PAID OR PAYABLE BY LICENSEE TO LICENSOR FOR THE SOFTWARE
+DURING THE TWELVE (12) MONTHS PRECEDING THE EVENT GIVING RISE TO LIABILITY.
+
+11.3 The exclusions and limits in this section apply regardless of legal theory and even if a remedy fails
+of its essential purpose.
+
+12. INDEMNIFICATION
+
+12.1 By Licensor. Licensor will defend and indemnify Licensee against third-party claims alleging that
+unmodified Software infringes a U.S. copyright or trademark, subject to prompt notice, Licensor control
+of defense, and Licensee cooperation.
+
+12.2 Exclusions. Licensor has no obligation for claims arising from: (a) modifications not made by
+Licensor; (b) combinations with items not supplied by Licensor; (c) use outside the Agreement scope;
+or (d) continued use after notice of an alleged infringement that Licensor can reasonably mitigate.
+
+12.3 By Licensee. Licensee will defend and indemnify Licensor from third-party claims arising from
+Licensee's deployment, configuration, misuse, regulatory violations, or unlawful operation.
+
+13. TERM AND TERMINATION
+
+13.1 Term. This Agreement begins on the effective date of the applicable Order Form and continues for
+the term stated in that Order Form, or if none is specified, until terminated under this Section.
+
+13.2 Termination for Breach. Either party may terminate this Agreement for material breach if the
+breaching party fails to cure within thirty (30) days after written notice.
+
+13.3 Immediate Termination. Licensor may terminate immediately for non-payment, unauthorized
+redistribution, or material violation of Sections 3, 8, or 9.
+
+13.4 Effect of Termination. Upon termination, Licensee must cease use and destroy or return all copies
+of the Software, except one archival copy retained solely for legal compliance purposes.
+
+14. ASSIGNMENT
+
+Neither party may assign this Agreement without the other party's prior written consent, except in
+connection with a merger, acquisition, or sale of substantially all assets, provided the assignee agrees
+to be bound by this Agreement.
+
+15. GOVERNING LAW AND VENUE
+
+This Agreement is governed by the laws of the State of Ohio, United States, excluding conflict-of-law
+principles. Any legal action arising out of this Agreement shall be brought exclusively in state or federal
+courts located in Ohio, and each party consents to personal jurisdiction and venue in those courts.
+
+16. GENERAL
+
+16.1 Entire Agreement. This Agreement and applicable Order Forms constitute the entire agreement and
+supersede prior understandings concerning the Software.
+
+16.2 Amendments. Changes must be in writing and signed by authorized representatives of both parties.
+
+16.3 Severability. If any provision is held unenforceable, the remaining provisions remain in effect.
+
+16.4 Waiver. Failure to enforce a provision is not a waiver of future enforcement.
+
+16.5 Independent Contractors. The parties are independent contractors; no partnership, joint venture,
+or agency relationship is created.
+
+17. CONTACT
+
+Licensor: Timothy Kramer (KR8MER)
 Email: sales@easstation.com
-Website: https://github.com/KR8MER/eas-station
+GitHub: https://github.com/KR8MER/eas-station
 
-For open-source use under AGPL v3, see LICENSE file.
+For open-source use under AGPL v3, see LICENSE.

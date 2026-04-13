@@ -11,59 +11,38 @@ This software is available under two licenses:
 
 1. GNU AFFERO GENERAL PUBLIC LICENSE v3 (AGPL-3.0)
    - See LICENSE file
-   - Free for open-source use
-   - REQUIRES source code disclosure for web service deployments
-   - REQUIRES attribution and copyright notices to remain intact
+   - Available to users who comply with AGPL v3 obligations
+   - Includes source disclosure obligations for modified network deployments
 
 2. COMMERCIAL LICENSE
    - See LICENSE-COMMERCIAL file
    - For proprietary/closed-source use
-   - No source code disclosure requirements
+   - No AGPL source disclosure requirements
    - Contact copyright holder for pricing
 
 ================================================================================
-MANDATORY ATTRIBUTION REQUIREMENTS (BOTH LICENSES)
+AGPL NOTICE PRESERVATION REQUIREMENTS
 ================================================================================
 
-All uses of this software MUST include the following attribution:
+When using this software under AGPL v3, you must comply with AGPL terms,
+including preserving applicable copyright and license notices.
+
+Recommended attribution string:
 
   "Powered by EAS Station - Copyright (c) 2025-2026 Timothy Kramer (KR8MER)"
 
-This attribution MUST appear:
-- In the web interface footer (if deployed as web service)
-- In the software's about/credits section
-- In any documentation distributed with the software
-- In any derivative works
-
-You may NOT:
-- Remove or obscure copyright notices
-- Remove or obscure author attributions
-- Claim this software as your own creation
-- Rebrand this software without explicit written permission
-- Remove the "EAS Station" name from the software
-
 ================================================================================
-ANTI-REBRANDING PROTECTION
+TRADEMARKS AND BRANDING
 ================================================================================
 
-The name "EAS Station" and associated branding are protected. You may NOT:
+"EAS Station", associated logos, and branding are not licensed under AGPL v3
+or the commercial software license except as expressly permitted.
 
-1. Rename the software and distribute it as your own product
-2. Remove references to the original author (Timothy Kramer/KR8MER)
-3. Present modified versions as original works without attribution
-4. Use confusingly similar names that imply official endorsement
+Use of trademarks and branding is governed by the project Trademark Policy:
+  docs/policies/TRADEMARK_POLICY.md
 
-Derivative works MUST clearly indicate:
-- The original software name: "EAS Station"
-- The original author: Timothy Kramer (KR8MER)
-- That it is a modified version (e.g., "Based on EAS Station")
-
-================================================================================
-TRADEMARK NOTICE
-================================================================================
-
-"EAS Station" is a trademark of Timothy Kramer.
-Unauthorized use of this trademark is prohibited.
+You may not imply endorsement by Timothy Kramer or the EAS Station project
+without explicit written permission.
 
 ================================================================================
 LICENSE SELECTION
@@ -72,11 +51,11 @@ LICENSE SELECTION
 By using this software, you agree to comply with one of the two licenses:
 
 - If you deploy as a web service or distribute modified versions:
-  You MUST either (a) comply with AGPL v3 and share your source code, OR
+  You MUST either (a) comply with AGPL v3 and provide required source access, OR
   (b) obtain a commercial license
 
 - If you use internally without distribution:
-  You may use under AGPL v3 with attribution requirements
+  You may use under AGPL v3 if you comply with its terms
 
 ================================================================================
 CONTACT
@@ -91,15 +70,5 @@ For open-source questions:
 See GitHub Issues: https://github.com/KR8MER/eas-station/issues
 
 ================================================================================
-ENFORCEMENT
-================================================================================
 
-Violation of attribution requirements or unauthorized rebranding will result in:
-- License termination
-- Legal action for copyright infringement
-- Legal action for trademark infringement
-- Damages as provided by law
-
-================================================================================
-
-Last updated: 2025-01-20
+Last updated: 2026-04-13

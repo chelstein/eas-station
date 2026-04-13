@@ -1,6 +1,6 @@
 # ⚖️ Terms of Use
 
-_Last updated: February 14, 2026_
+_Last updated: April 13, 2026_
 
 > **Critical Safety Notice:** EAS Station is experimental software. It must not be used for life-safety, mission-critical, or FCC-mandated alerting. Commercially certified EAS equipment remains the only acceptable solution for regulatory compliance.
 
@@ -16,10 +16,10 @@ _Last updated: February 14, 2026_
 - You assume all risk for evaluating the software in lab or demonstration environments. The project is provided strictly on an “AS IS” basis without warranties of any kind.
 
 ## 3. Disclaimer of Liability & Indemnification
-- The authors, maintainers, and contributors disclaim any and all liability—civil, criminal, and regulatory—for damages, injuries, penalties, data loss, downtime, enforcement actions, or criminal proceedings that may arise from use or misuse of EAS Station—including malicious, unauthorized, or noncompliant uses by you or anyone who gains access to your deployment.
-- **The developer and contributors of this project bear absolutely no responsibility for any criminal activity conducted using this software.**
-- No emergency responses, broadcast activations, or public warning decisions should be based on this project. Use at your own risk.
-- You agree to indemnify, defend, and hold harmless the project authors, maintainers, and contributors from any and all claims, demands, damages, losses, costs, and liabilities—including attorneys' fees and criminal defense costs—arising out of your deployment, configuration, redistribution, or failure to control access to the project.
+- To the maximum extent permitted by law, the authors, maintainers, and contributors disclaim liability for damages, penalties, data loss, downtime, enforcement actions, or claims arising from your use, misuse, deployment, or redistribution of EAS Station.
+- No emergency response, broadcast activation, or public warning decision should be based on this project.
+- You are solely responsible for securing your deployment, controlling access, and complying with applicable law.
+- You agree to defend, indemnify, and hold harmless the project authors, maintainers, and contributors from third-party claims, losses, and expenses (including reasonable attorneys' fees) arising from your deployment, operation, or misuse of the software.
 
 ## 4. Acceptable Use & Prohibited Activities
 - Operate the software only in controlled, non-production lab or development environments.
@@ -47,7 +47,7 @@ Misuse of EAS Station—including unauthorized broadcast, spoofing, or interfere
   - **Ohio Revised Code § 2917.32** (Making False Alarms) — prohibits initiating or announcing a false alarm of fire, explosion, flood, avalanche, or other disaster requiring emergency response, or causing another to initiate or announce such a false alarm. A violation is a **first-degree misdemeanor** and escalates to a **fourth-degree felony** if it results in serious physical harm to any person, or if the offender has a prior conviction for the same offense.
   - **Ohio Revised Code § 2921.31** (Obstructing Official Business) — prohibits knowingly hampering or impeding a public official or employee in the performance or discharge of any authorized duty. Misuse that interferes with authorized emergency broadcasts, disrupts emergency response coordination, or prevents lawful EAS relay is a violation. A violation is a **second-degree misdemeanor** and escalates to a **fifth-degree felony** when the conduct creates a risk of physical harm to any person.
 - In jurisdictions outside the United States, equivalent or more severe criminal statutes may apply, and international law enforcement cooperation may result in prosecution across borders.
-- **The developer, maintainers, and contributors of EAS Station bear absolutely no criminal, civil, or regulatory liability for any act, omission, or crime committed by any person using this software.** Your use of this software constitutes your sole and exclusive acceptance of all criminal, civil, and regulatory risk and liability arising from that use.
+- To the maximum extent permitted by law, the developer, maintainers, and contributors disclaim criminal, civil, and regulatory liability for acts or omissions committed by persons using this software. You remain responsible for your own conduct and legal compliance.
 - The project authors are not accomplices, aiders, or abettors of any misuse and explicitly disclaim any knowledge of, participation in, or responsibility for any illegal activity conducted using this software. The existence of this software does not constitute authorization, endorsement, or facilitation of any unlawful act.
 
 ## 4b. Documented Real-World Enforcement Cases
@@ -102,7 +102,7 @@ Applicable rules: 47 C.F.R. § 11.45 (prohibition on EAS code/Attention Signal u
 - Third-party libraries, firmware, container images, and hardware integrations are subject to their own licenses and warranties. You are responsible for reviewing and complying with those terms.
 
 ## 9. Licensing & Contributions
-- The EAS Station source code is dual-licensed under the [GNU Affero General Public License v3 (AGPL-3.0)](../../LICENSE) for open-source use and a [Commercial License](../../LICENSE-COMMERCIAL) for proprietary use. Copyright remains with Timothy Kramer (KR8MER).
+- The EAS Station source code is dual-licensed under the [GNU Affero General Public License v3 (AGPL-3.0)](../../LICENSE) and a [Commercial License](../../LICENSE-COMMERCIAL). AGPL availability is not limited to non-commercial users; commercial users may also use AGPL if they comply with its terms. Copyright remains with Timothy Kramer (KR8MER).
 - By submitting code, documentation, or other content, contributors agree that their work is provided under the AGPL-3.0 license unless a separate commercial agreement is in place.
 - All commits must include a Developer Certificate of Origin (DCO) sign-off line (`Signed-off-by`) affirming that the contributor has the right to submit the work under the project license. Instructions are provided in [CONTRIBUTING.md](../process/CONTRIBUTING).
 
@@ -118,7 +118,21 @@ Applicable rules: 47 C.F.R. § 11.45 (prohibition on EAS code/Attention Signal u
 - Questions about these terms can be directed through the GitHub issue tracker.
 - Do **not** submit emergency requests, personal data, or public warning content through that channel.
 
-## 13. AMPR Network (44.0.0.0/8) — Non-Commercial Use
+## 13. General Contract Terms
+- **Governing Law and Venue:** Unless superseded by a separate written agreement, these terms are governed by the laws of the State of Ohio, United States, without regard to conflict-of-law principles. Any dispute arising from these terms must be brought in state or federal courts located in Ohio.
+- **Severability:** If any provision is held unenforceable, remaining provisions remain in full force.
+- **Waiver:** Failure to enforce any provision is not a waiver of future enforcement.
+- **Entire Agreement for Site Terms:** These Terms of Use, together with referenced policy pages, form the entire agreement for use of this website and related project resources.
+- **Updates to Terms:** We may update these terms from time to time by posting a revised version with a new "Last updated" date.
+- **Capacity:** By using this site, you represent that you have legal capacity to enter into this agreement in your jurisdiction.
+- **Legal Notices Contact:** For legal notices, contact sales@easstation.com.
+
+## 14. Relationship to Software Licenses
+- These Terms of Use govern access to and use of the website, documentation, and related resources.
+- These Terms of Use do **not** replace, modify, or override the software copyright licenses.
+- Use, modification, and distribution of source code are governed by the [AGPL-3.0 License](../../LICENSE) or the [Commercial License](../../LICENSE-COMMERCIAL), as applicable.
+
+## 15. AMPR Network (44.0.0.0/8) — Non-Commercial Use
 
 This service may be accessible via the **AMPRNet** IPv4 address block (`44.0.0.0/8`), which is allocated globally to the licensed amateur radio community by the [Amateur Radio Digital Communications (ARDC)](https://www.ampr.org/) foundation and managed under amateur radio service rules (FCC 47 CFR Part 97 in the United States).
 
