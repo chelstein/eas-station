@@ -46,6 +46,7 @@ from .eas_fsk import (
     SAME_MARK_FREQ,
     SAME_SPACE_FREQ,
     encode_same_bits,
+    encode_terminator_bits,
     generate_fsk_samples,
 )
 from .eas_tts import TTSEngine
@@ -1393,6 +1394,26 @@ def _generate_silence(duration: float, sample_rate: int) -> List[int]:
     return [0] * max(1, int(duration * sample_rate))
 
 
+def _generate_station_terminator_samples(amplitude: float, sample_rate: int) -> List[int]:
+    """Generate the KR8MER EAS Station FSK fingerprint: 3 × 0xAA terminator bytes.
+
+    0xAA (10101010 binary) alternates between space (1562 Hz) and mark (2083 Hz)
+    on every bit, producing a ~46 ms trill appended after each SAME burst.
+    Other ENDEC decoders gracefully exit post-message mode on the first 0xAA byte
+    (the message is already decoded at that point) while our own decoder
+    recognises the run and reports ENDEC_MODE_EAS_STATION.
+    """
+    bits = encode_terminator_bits(0xAA, 3)
+    return generate_fsk_samples(
+        bits,
+        sample_rate=sample_rate,
+        bit_rate=float(SAME_BAUD),
+        mark_freq=SAME_MARK_FREQ,
+        space_freq=SAME_SPACE_FREQ,
+        amplitude=amplitude,
+    )
+
+
 def _normalize_audio_amplitude(samples: List[int], target_amplitude: float) -> List[int]:
     """Normalize audio samples to match the target amplitude using RMS.
 
@@ -1839,6 +1860,7 @@ class EASAudioGenerator:
             space_freq=SAME_SPACE_FREQ,
             amplitude=amplitude,
         )
+        terminator_samples = _generate_station_terminator_samples(amplitude, self.sample_rate)
 
         samples: List[int] = []
         segment_samples: Dict[str, List[int]] = {
@@ -1850,6 +1872,8 @@ class EASAudioGenerator:
         for burst_index in range(3):
             samples.extend(header_samples)
             segment_samples['same'].extend(header_samples)
+            samples.extend(terminator_samples)
+            segment_samples['same'].extend(terminator_samples)
             silence = _generate_silence(1.0, self.sample_rate)
             samples.extend(silence)
             segment_samples['same'].extend(silence)
@@ -2035,6 +2059,7 @@ class EASAudioGenerator:
         eom_raw_samples: List[int] = []
         for burst_index in range(3):
             eom_raw_samples.extend(eom_header_samples)
+            eom_raw_samples.extend(terminator_samples)
             if burst_index < 2:
                 eom_raw_samples.extend(_generate_silence(1.0, self.sample_rate))
         eom_raw_samples.extend(_generate_silence(1.0, self.sample_rate))
@@ -2128,10 +2153,12 @@ class EASAudioGenerator:
             space_freq=SAME_SPACE_FREQ,
             amplitude=amplitude,
         )
+        terminator_samples = _generate_station_terminator_samples(amplitude, self.sample_rate)
 
         samples: List[int] = []
         for burst_index in range(3):
             samples.extend(header_samples)
+            samples.extend(terminator_samples)
             if burst_index < 2:
                 samples.extend(_generate_silence(1.0, self.sample_rate))
 
@@ -2195,11 +2222,13 @@ class EASAudioGenerator:
             space_freq=SAME_SPACE_FREQ,
             amplitude=amplitude,
         )
+        terminator_samples = _generate_station_terminator_samples(amplitude, self.sample_rate)
 
         repeats = max(1, int(repeats))
         same_samples: List[int] = []
         for burst_index in range(repeats):
             same_samples.extend(header_samples)
+            same_samples.extend(terminator_samples)
             if burst_index < repeats - 1:
                 same_samples.extend(_generate_silence(silence_between_headers, self.sample_rate))
 
@@ -2296,6 +2325,7 @@ class EASAudioGenerator:
         eom_samples: List[int] = []
         for burst_index in range(3):
             eom_samples.extend(eom_header_samples)
+            eom_samples.extend(terminator_samples)
             if burst_index < 2:
                 eom_samples.extend(_generate_silence(1.0, self.sample_rate))
 

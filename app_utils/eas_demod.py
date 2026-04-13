@@ -53,6 +53,7 @@ ENDEC_MODE_NWS_BMH = "NWS_BMH"         # NWS Broadcast Message Handler 2016+
 ENDEC_MODE_SAGE_3644 = "SAGE_DIGITAL_3644"
 ENDEC_MODE_SAGE_1822 = "SAGE_ANALOG_1822"
 ENDEC_MODE_TRILITHIC = "TRILITHIC"      # Trilithic EASyPLUS (~868 ms inter-burst gap)
+ENDEC_MODE_EAS_STATION = "EAS_STATION"  # KR8MER EAS Station (3 × 0xAA trill fingerprint)
 
 # Inter-burst gap windows (ms) for mode fingerprinting
 _ENDEC_GAP_TRILITHIC = (820, 920)   # 868 ms nominal
@@ -121,6 +122,7 @@ def detect_endec_mode(
        - SAGE ANALOG 1822:           1 × 0xFF per burst
        - SAGE DIGITAL 3644:          3 × 0xFF per burst  (+ leading 0x00 on 1st burst)
        - DEFAULT/DASDEC, TRILITHIC:  no terminator bytes
+       - KR8MER EAS Station:         3 × 0xAA per burst (alternating trill fingerprint)
 
     2. **Leading 0x00 before preamble** — SAGE DIGITAL 3644 prepends one 0x00
        byte before the 16-byte preamble on the first burst.
@@ -143,13 +145,14 @@ def detect_endec_mode(
         return ENDEC_MODE_UNKNOWN
 
     votes: dict = {
-        ENDEC_MODE_DEFAULT:   0.0,
-        ENDEC_MODE_NWS:       0.0,
-        ENDEC_MODE_NWS_CRS:   0.0,
-        ENDEC_MODE_NWS_BMH:   0.0,
-        ENDEC_MODE_SAGE_3644: 0.0,
-        ENDEC_MODE_SAGE_1822: 0.0,
-        ENDEC_MODE_TRILITHIC: 0.0,
+        ENDEC_MODE_DEFAULT:      0.0,
+        ENDEC_MODE_NWS:          0.0,
+        ENDEC_MODE_NWS_CRS:      0.0,
+        ENDEC_MODE_NWS_BMH:      0.0,
+        ENDEC_MODE_SAGE_3644:    0.0,
+        ENDEC_MODE_SAGE_1822:    0.0,
+        ENDEC_MODE_TRILITHIC:    0.0,
+        ENDEC_MODE_EAS_STATION:  0.0,
     }
 
     # 1. Terminator byte votes — primary ENDEC discriminator
@@ -182,6 +185,15 @@ def detect_endec_mode(
                 else:
                     votes[ENDEC_MODE_SAGE_1822] += 1.5
                     votes[ENDEC_MODE_SAGE_3644] += 1.5
+            elif byte_val == 0xAA:
+                # 0xAA terminator → KR8MER EAS Station trill fingerprint.
+                # 0xAA (10101010 binary) produces an alternating space/mark
+                # pattern in FSK, creating a distinctive trill sound.
+                # Three bytes is the canonical run length for this station.
+                if run_length >= 3:
+                    votes[ENDEC_MODE_EAS_STATION] += 4.0
+                else:
+                    votes[ENDEC_MODE_EAS_STATION] += run_length * 1.0
 
     # 2. Leading null byte (SAGE DIGITAL 3644 specific signature)
     if leading_null_detected:
@@ -519,7 +531,7 @@ class SAMEDemodulatorCore:
                         # FCC §11.31 encoding appends a trailing \r after the header,
                         # which must be ignored here to avoid prematurely exiting
                         # post-message capture before ENDEC terminator bytes arrive.
-                        if byte_val in (0x00, 0xFF):
+                        if byte_val in (0x00, 0xFF, 0xAA):
                             if self._terminator_byte is None:
                                 self._terminator_byte = byte_val
                                 self._terminator_run = 1
