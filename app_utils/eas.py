@@ -1833,6 +1833,15 @@ class EASAudioGenerator:
             logger.info("EASAudioGenerator: No TTS provider configured")
         
         self.tts_engine = TTSEngine(config, logger, self.sample_rate)
+        # Opt-out flag: set config key 'endec_fingerprint' to False to suppress
+        # the 3 × 0xAA trill appended after each SAME burst.  Defaults to True.
+        self._fingerprint_enabled = bool(config.get('endec_fingerprint', True))
+
+    def _terminator_samples(self, amplitude: float) -> List[int]:
+        """Return the station fingerprint samples, or [] when fingerprinting is disabled."""
+        if not self._fingerprint_enabled:
+            return []
+        return _generate_station_terminator_samples(amplitude, self.sample_rate)
 
     def build_files(
         self,
@@ -1860,7 +1869,7 @@ class EASAudioGenerator:
             space_freq=SAME_SPACE_FREQ,
             amplitude=amplitude,
         )
-        terminator_samples = _generate_station_terminator_samples(amplitude, self.sample_rate)
+        terminator_samples = self._terminator_samples(amplitude)
 
         samples: List[int] = []
         segment_samples: Dict[str, List[int]] = {
@@ -2153,7 +2162,7 @@ class EASAudioGenerator:
             space_freq=SAME_SPACE_FREQ,
             amplitude=amplitude,
         )
-        terminator_samples = _generate_station_terminator_samples(amplitude, self.sample_rate)
+        terminator_samples = self._terminator_samples(amplitude)
 
         samples: List[int] = []
         for burst_index in range(3):
@@ -2222,7 +2231,7 @@ class EASAudioGenerator:
             space_freq=SAME_SPACE_FREQ,
             amplitude=amplitude,
         )
-        terminator_samples = _generate_station_terminator_samples(amplitude, self.sample_rate)
+        terminator_samples = self._terminator_samples(amplitude)
 
         repeats = max(1, int(repeats))
         same_samples: List[int] = []
