@@ -14,7 +14,7 @@ from __future__ import annotations
 from alembic import op
 
 revision = "20260413_add_endec_fingerprint_to_eas_settings"
-down_revision = "20260402_add_max_activation_seconds_to_eas_settings"
+down_revision = "20260402_backfill_vtec_superseded_alerts"
 branch_labels = None
 depends_on = None
 

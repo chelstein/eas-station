@@ -122,7 +122,7 @@ def detect_endec_mode(
        - SAGE ANALOG 1822:           1 × 0xFF per burst
        - SAGE DIGITAL 3644:          3 × 0xFF per burst  (+ leading 0x00 on 1st burst)
        - DEFAULT/DASDEC, TRILITHIC:  no terminator bytes
-       - KR8MER EAS Station:         3 × 0xAA per burst (alternating trill fingerprint)
+       - KR8MER EAS Station:         3 × 0xBB per burst
 
     2. **Leading 0x00 before preamble** — SAGE DIGITAL 3644 prepends one 0x00
        byte before the 16-byte preamble on the first burst.
@@ -185,11 +185,9 @@ def detect_endec_mode(
                 else:
                     votes[ENDEC_MODE_SAGE_1822] += 1.5
                     votes[ENDEC_MODE_SAGE_3644] += 1.5
-            elif byte_val == 0xAA:
-                # 0xAA terminator → KR8MER EAS Station trill fingerprint.
-                # 0xAA (10101010 binary) produces an alternating space/mark
-                # pattern in FSK, creating a distinctive trill sound.
-                # Three bytes is the canonical run length for this station.
+            elif byte_val == 0xBB:
+                # 0xBB terminator → KR8MER EAS Station.
+                # Not used by any known ENDEC; EAS-Tools ignores it entirely.
                 if run_length >= 3:
                     votes[ENDEC_MODE_EAS_STATION] += 4.0
                 else:
@@ -531,7 +529,7 @@ class SAMEDemodulatorCore:
                         # FCC §11.31 encoding appends a trailing \r after the header,
                         # which must be ignored here to avoid prematurely exiting
                         # post-message capture before ENDEC terminator bytes arrive.
-                        if byte_val in (0x00, 0xFF, 0xAA):
+                        if byte_val in (0x00, 0xFF, 0xBB):
                             if self._terminator_byte is None:
                                 self._terminator_byte = byte_val
                                 self._terminator_run = 1
