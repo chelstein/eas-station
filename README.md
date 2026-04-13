@@ -628,7 +628,7 @@ python app.py
 
     Always work in shielded test environments. Never connect to production broadcast chains.
 
-See [Terms of Use](docs/policies/TERMS_OF_USE) and [FCC Compliance](docs/reference/ABOUT) for details.
+See [Terms of Use](docs/policies/TERMS_OF_USE.md), [FCC Compliance](docs/reference/ABOUT.md), and [Trademark Policy](docs/policies/TRADEMARK_POLICY.md) for details.
 
 ## 📈 Roadmap
 
@@ -659,14 +659,15 @@ EAS Station is available under **dual licensing**:
 
 ### Open Source License (AGPL v3)
 
-For open-source projects and non-commercial use, EAS Station is licensed under the [GNU Affero General Public License v3 (AGPL-3.0)](LICENSE).
+For users who comply with AGPL v3 obligations, EAS Station is licensed under the [GNU Affero General Public License v3 (AGPL-3.0)](LICENSE).
 
 **Key requirements:**
 - ✅ Free to use, modify, and distribute
 - ✅ Must keep source code open
 - ✅ Must share modifications if you deploy as a web service
-- ✅ Must retain copyright and attribution notices
-- ❌ Cannot remove author attribution or rebrand
+- ✅ Must retain copyright and license notices
+- ✅ Must mark modified network deployments with source availability as required by AGPL v3
+- ✅ Must avoid implying endorsement by the upstream project
 
 See [LICENSE](LICENSE) file for full AGPL terms.
 
@@ -691,15 +692,15 @@ Copyright (c) 2025-2026 Timothy Kramer (KR8MER)
 EAS Station - https://github.com/KR8MER/eas-station
 ```
 
-**IMPORTANT:** All derivative works must retain attribution to the original author.
-Rebranding or removing attribution is prohibited under both licenses.
-See [NOTICE](NOTICE) file for complete terms.
+**IMPORTANT:** Preserve required legal notices under your chosen license.
+Branding and logo usage are governed separately by the [Trademark Policy](docs/policies/TRADEMARK_POLICY.md).
+See [NOTICE](NOTICE) for licensing notice details.
 
 ### Why Dual Licensing?
 
-- **For hobbyists & open-source**: Free to use under AGPL
-- **For commercial use**: Option to license without copyleft obligations
-- **For everyone**: Protects the author's rights and prevents unauthorized rebranding
+- **For open-source and commercial users**: AGPL is available for anyone who complies with copyleft requirements
+- **For proprietary use**: Commercial licensing is available without AGPL obligations
+- **For branding clarity**: Trademark usage is handled by separate trademark policy terms
 
 ## 🙏 Acknowledgments
 
