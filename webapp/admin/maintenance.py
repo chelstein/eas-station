@@ -33,7 +33,7 @@ from urllib.parse import quote
 import requests
 from flask import Blueprint, current_app, jsonify, request
 from sqlalchemy import desc, or_, text
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from app_core.alerts import (
     assign_alert_geometry,
@@ -1418,13 +1418,40 @@ def clear_expired():
 # ============================================================================
 
 def _ensure_eas_settings_record() -> EASSettings:
-    """Ensure there is a single EASSettings row (id=1)."""
-    settings = EASSettings.query.get(1)
-    if not settings:
-        settings = EASSettings(id=1)
-        db.session.add(settings)
-        db.session.commit()
-    return settings
+    """Ensure there is a single EASSettings row (id=1).
+
+    If the query raises ProgrammingError due to a missing column (migration not
+    yet applied), the missing column is added automatically and the query is
+    retried — so the app self-heals on first request after a code deploy.
+    """
+    _PENDING_MIGRATIONS = [
+        "ALTER TABLE eas_settings ADD COLUMN IF NOT EXISTS endec_fingerprint BOOLEAN NOT NULL DEFAULT TRUE",
+    ]
+
+    def _query():
+        settings = EASSettings.query.get(1)
+        if not settings:
+            settings = EASSettings(id=1)
+            db.session.add(settings)
+            db.session.commit()
+        return settings
+
+    try:
+        return _query()
+    except ProgrammingError as exc:
+        if "UndefinedColumn" not in type(exc.orig).__name__:
+            raise
+        db.session.rollback()
+        for stmt in _PENDING_MIGRATIONS:
+            try:
+                db.session.execute(text(stmt))
+                db.session.commit()
+                current_app.logger.warning("Auto-applied pending migration: %s", stmt)
+            except Exception as migration_exc:
+                db.session.rollback()
+                current_app.logger.error("Failed to auto-apply migration: %s", migration_exc)
+                raise
+        return _query()
 
 
 @maintenance_bp.route("/admin/eas_settings", methods=["GET", "PUT"])
