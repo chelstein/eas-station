@@ -507,9 +507,9 @@ def generate_alert_image(
 
     iy = _draw_threats(draw, fonts, alr_clr, ix, iy, iw, bot, ipaws_data)
     iy = _draw_coverage(draw, fonts, alr_clr, ix, iy, iw, bot, coverage_data, county_name)
-    iy = _draw_vtac(draw, fonts, alr_clr, ix, iy, iw, bot, ipaws_data)
+    iy = _draw_compass_section(draw, fonts, alr_clr, ix, iy, iw, bot, ipaws_data)
     iy = _draw_areas(draw, fonts, alr_clr, ix, iy, iw, bot, alert)
-    iy = _draw_headline(draw, fonts, alr_clr, ix, iy, iw, bot, alert)
+    iy = _draw_nws_headline(draw, fonts, alr_clr, ix, iy, iw, bot, alert, ipaws_data)
 
     # ── Footer ────────────────────────────────────────────────────────────────
     fy = FB_HEIGHT - FOOTER_H
@@ -734,14 +734,12 @@ def _draw_coverage(draw: ImageDraw.ImageDraw, fonts: Dict, alr_clr: Tuple,
 def _draw_vtac(draw: ImageDraw.ImageDraw, fonts: Dict, alr_clr: Tuple,
                ix: int, iy: int, iw: int, bot: int,
                ipaws_data: Optional[Dict]) -> int:
-    vtec_list  = (ipaws_data or {}).get('vtec_parsed', [])
-    storm      = (ipaws_data or {}).get('storm_motion', {})
-    nws_head   = (ipaws_data or {}).get('nws_headline', '')
+    vtec_list = (ipaws_data or {}).get('vtec_parsed', [])
 
-    if not vtec_list and not storm and not nws_head:
+    if not vtec_list:
         return iy
 
-    iy = _section_header(draw, fonts, alr_clr, ix, iy, iw, 'VTAC / MOTION')
+    iy = _section_header(draw, fonts, alr_clr, ix, iy, iw, 'VTAC')
 
     for vtec in vtec_list[:3]:
         raw = vtec.get('raw', '') if isinstance(vtec, dict) else str(vtec)
@@ -749,10 +747,10 @@ def _draw_vtac(draw: ImageDraw.ImageDraw, fonts: Dict, alr_clr: Tuple,
             continue
         # Prefer decoded labels when available
         if isinstance(vtec, dict) and vtec.get('phenomenon_label') and vtec.get('action_label'):
-            phen  = vtec.get('phenomenon_label', '')
-            act   = vtec.get('action_label', '')
+            phen   = vtec.get('phenomenon_label', '')
+            act    = vtec.get('action_label', '')
             office = vtec.get('office', '')
-            etn   = vtec.get('event_number', '')
+            etn    = vtec.get('event_number', '')
             decoded = f'{act} — {phen}  ({office} #{etn})' if office else f'{act} — {phen}'
             display = decoded
         else:
@@ -774,26 +772,6 @@ def _draw_vtac(draw: ImageDraw.ImageDraw, fonts: Dict, alr_clr: Tuple,
                       _truncate(fonts['mono'], raw, iw - 20),
                       font=fonts['mono'], fill=_TEXT_MUT)
             iy += 18 + 2
-
-    # Storm motion row
-    if storm and iy + 24 <= bot:
-        speed_mph = storm.get('speed_mph', '')
-        compass   = storm.get('compass', '')
-        toward    = storm.get('compass_toward', '')
-        if speed_mph or compass:
-            parts = []
-            if compass:
-                parts.append(f'From {compass}')
-            if speed_mph:
-                parts.append(f'{speed_mph} MPH')
-            if toward:
-                parts.append(f'toward {toward}')
-            motion = 'Motion: ' + '  ·  '.join(parts)
-            _card_row(draw, ix, iy, iw, 24)
-            draw.text((ix + 7, iy + (24 - _th(fonts['small'], motion)) // 2),
-                      _truncate(fonts['small'], motion, iw - 14),
-                      font=fonts['small'], fill=_TEXT_SEC)
-            iy += 26
 
     return iy + 6
 
@@ -835,77 +813,175 @@ def _draw_areas(draw: ImageDraw.ImageDraw, fonts: Dict, alr_clr: Tuple,
     return iy + 4
 
 
-def _draw_headline(draw: ImageDraw.ImageDraw, fonts: Dict, alr_clr: Tuple,
-                   ix: int, iy: int, iw: int, bot: int, alert: Any) -> int:
-    """Draw the alert headline (bold) and opening of description (muted).
+def _draw_compass_section(draw: ImageDraw.ImageDraw, fonts: Dict, alr_clr: Tuple,
+                          ix: int, iy: int, iw: int, bot: int,
+                          ipaws_data: Optional[Dict]) -> int:
+    """Draw a circular compass rose with the storm motion arrow + speed/direction text."""
+    storm = (ipaws_data or {}).get('storm_motion', {})
+    if not storm:
+        return iy
 
-    The headline is word-wrapped to at most 3 lines.  The first sentence of the
-    description fills whatever space remains, truncated as needed.
+    toward_deg    = storm.get('toward_deg')
+    direction_deg = storm.get('direction_deg')
+    compass_toward = storm.get('compass_toward', '')
+    compass_from   = storm.get('compass_from', storm.get('compass', ''))
+    speed_mph      = storm.get('speed_mph', '')
+    speed_kt       = storm.get('speed_kt', '')
+
+    if toward_deg is None and not compass_toward and not speed_mph:
+        return iy
+
+    section_h = 88
+    if iy + 22 + section_h + 6 > bot:
+        return iy
+
+    iy = _section_header(draw, fonts, alr_clr, ix, iy, iw, 'STORM MOTION')
+    draw.rectangle((ix, iy, ix + iw, iy + section_h), fill=_CARD)
+
+    # ── Compass rose ──────────────────────────────────────────────────────────
+    r   = 30                   # ring radius
+    ccx = ix + r + 16          # compass centre-x
+    ccy = iy + section_h // 2  # compass centre-y
+
+    ring_clr = _TEXT_MUT
+    draw.ellipse((ccx - r, ccy - r, ccx + r, ccy + r), outline=ring_clr, width=2)
+
+    # Cardinal ticks + labels
+    for deg, lbl in [(0, 'N'), (90, 'E'), (180, 'S'), (270, 'W')]:
+        ang = math.radians(deg)
+        sx  =  math.sin(ang)
+        sy  = -math.cos(ang)   # screen y grows downward
+        # Tick mark
+        draw.line([
+            (ccx + int(sx * (r - 6)), ccy + int(sy * (r - 6))),
+            (ccx + int(sx * r),       ccy + int(sy * r)),
+        ], fill=ring_clr, width=2)
+        # Label just outside the ring
+        lx = ccx + int(sx * (r + 9))
+        ly = ccy + int(sy * (r + 9))
+        draw.text((lx - _tw(fonts['tiny'], lbl) // 2,
+                   ly - _th(fonts['tiny'], lbl) // 2),
+                  lbl, font=fonts['tiny'], fill=ring_clr)
+
+    # Intermediate ticks (45°)
+    for deg in [45, 135, 225, 315]:
+        ang = math.radians(deg)
+        sx, sy = math.sin(ang), -math.cos(ang)
+        draw.line([
+            (ccx + int(sx * (r - 4)), ccy + int(sy * (r - 4))),
+            (ccx + int(sx * r),       ccy + int(sy * r)),
+        ], fill=ring_clr, width=1)
+
+    # Directional arrow
+    if toward_deg is not None:
+        ang = math.radians(toward_deg)
+        dx  =  math.sin(ang)
+        dy  = -math.cos(ang)
+
+        tip_x = ccx + int(dx * (r - 7))
+        tip_y = ccy + int(dy * (r - 7))
+        tail_x = ccx - int(dx * int(r * 0.38))
+        tail_y = ccy - int(dy * int(r * 0.38))
+
+        draw.line([(tail_x, tail_y), (tip_x, tip_y)], fill=alr_clr, width=3)
+
+        w_ang = 0.45
+        hw    = 7
+        lw_x = tip_x - int((dx * math.cos( w_ang) - dy * math.sin( w_ang)) * hw)
+        lw_y = tip_y - int((dy * math.cos( w_ang) + dx * math.sin( w_ang)) * hw)
+        rw_x = tip_x - int((dx * math.cos(-w_ang) - dy * math.sin(-w_ang)) * hw)
+        rw_y = tip_y - int((dy * math.cos(-w_ang) + dx * math.sin(-w_ang)) * hw)
+        draw.polygon([(tip_x, tip_y), (lw_x, lw_y), (rw_x, rw_y)], fill=alr_clr)
+
+    # Centre dot
+    draw.ellipse((ccx - 3, ccy - 3, ccx + 3, ccy + 3), fill=ring_clr)
+
+    # ── Text block to the right of the compass ────────────────────────────────
+    tx   = ccx + r + 18
+    tw_  = iw - (tx - ix) - 8
+    ty   = iy + 10
+    lh   = 17
+
+    if compass_toward:
+        hstr = f'Heading {compass_toward}'
+        if toward_deg is not None:
+            hstr += f' ({int(toward_deg)}\u00b0)'
+        draw.text((tx, ty), hstr, font=fonts['bold'], fill=_TEXT)
+        ty += lh + 2
+
+    if compass_from:
+        fstr = f'From {compass_from}'
+        if direction_deg is not None:
+            fstr += f' ({int(direction_deg)}\u00b0)'
+        draw.text((tx, ty), fstr, font=fonts['small'], fill=_TEXT_SEC)
+        ty += lh
+
+    if speed_mph:
+        sstr = f'{speed_mph} MPH'
+        if speed_kt:
+            sstr += f'  ({speed_kt} kt)'
+        draw.text((tx, ty), sstr, font=fonts['bold'], fill=_TEXT)
+        ty += lh + 2
+
+    # Storm position (newest track point)
+    track = storm.get('track', [])
+    if track:
+        try:
+            lat, lon = float(track[-1][0]), float(track[-1][1])
+            pstr = f'Position: {lat:.2f}, {lon:.2f}'
+            draw.text((tx, ty), _truncate(fonts['tiny'], pstr, tw_),
+                      font=fonts['tiny'], fill=_TEXT_MUT)
+        except (TypeError, IndexError, ValueError):
+            pass
+
+    return iy + section_h + 6
+
+
+def _draw_nws_headline(draw: ImageDraw.ImageDraw, fonts: Dict, alr_clr: Tuple,
+                       ix: int, iy: int, iw: int, bot: int,
+                       alert: Any, ipaws_data: Optional[Dict]) -> int:
+    """Render the NWS operational headline (ALL-CAPS quote block).
+
+    Falls back to alert.headline when nws_headline is absent.
+    The alert.description is intentionally omitted — it's too long to
+    truncate meaningfully in a social-media image.
     """
-    headline = (getattr(alert, 'headline',    '') or '').strip()
-    desc     = (getattr(alert, 'description', '') or '').strip()
+    nws_head = (ipaws_data or {}).get('nws_headline', '').strip()
+    pub_head = (getattr(alert, 'headline', '') or '').strip()
+    text     = nws_head or pub_head
 
-    if not headline and not desc:
+    if not text or iy + 30 > bot:
         return iy
-    if iy + 28 > bot:
-        return iy
 
-    iy = _section_header(draw, fonts, alr_clr, ix, iy, iw, 'DETAILS')
+    iy = _section_header(draw, fonts, alr_clr, ix, iy, iw, 'HEADLINE')
 
-    # ── Headline: word-wrap up to 3 lines ────────────────────────────────────
-    if headline:
-        words = headline.split()
-        lines: List[str] = []
-        line  = ''
-        for word in words:
-            candidate = (line + ' ' + word).strip()
-            if _tw(fonts['bold'], candidate) <= iw - 14:
-                line = candidate
-            else:
-                if line:
-                    lines.append(line)
-                line = word
-        if line:
-            lines.append(line)
+    # Word-wrap (leave 10 px for the quote bar on the left)
+    font  = fonts['small']
+    max_w = iw - 18
+    words = text.split()
+    lines: List[str] = []
+    line  = ''
+    for word in words:
+        candidate = (line + ' ' + word).strip()
+        if _tw(font, candidate) <= max_w:
+            line = candidate
+        else:
+            if line:
+                lines.append(line)
+            line = word
+    if line:
+        lines.append(line)
 
-        for ltext in lines[:3]:
-            row_h = 22
-            if iy + row_h > bot:
-                break
-            _card_row(draw, ix, iy, iw, row_h)
-            draw.text((ix + 7, iy + (row_h - _th(fonts['bold'], ltext)) // 2),
-                      ltext, font=fonts['bold'], fill=_TEXT)
-            iy += row_h + 1
-
-    # ── Description: first sentence, then word-wrap up to 4 lines ────────────
-    if desc and iy + 20 <= bot:
-        # Collapse newlines, grab text before the first double-newline paragraph
-        flat = ' '.join(desc.replace('\r\n', '\n').replace('\r', '\n').split('\n'))
-        # Trim to first ~400 chars to keep it snappy
-        flat = flat[:400]
-
-        words = flat.split()
-        lines2: List[str] = []
-        line2 = ''
-        for word in words:
-            candidate = (line2 + ' ' + word).strip()
-            if _tw(fonts['small'], candidate) <= iw - 14:
-                line2 = candidate
-            else:
-                if line2:
-                    lines2.append(line2)
-                line2 = word
-        if line2:
-            lines2.append(line2)
-
-        for ltext in lines2[:4]:
-            row_h = 19
-            if iy + row_h > bot:
-                break
-            _card_row(draw, ix, iy, iw, row_h)
-            draw.text((ix + 7, iy + (row_h - _th(fonts['small'], ltext)) // 2),
-                      ltext, font=fonts['small'], fill=_TEXT_SEC)
-            iy += row_h + 1
+    row_h = 19
+    for ltext in lines:
+        if iy + row_h > bot:
+            break
+        _card_row(draw, ix, iy, iw, row_h)
+        # Coloured quote bar on the left edge
+        draw.rectangle((ix, iy, ix + 3, iy + row_h), fill=alr_clr)
+        draw.text((ix + 10, iy + (row_h - _th(font, ltext)) // 2),
+                  ltext, font=font, fill=_TEXT)
+        iy += row_h + 1
 
     return iy + 4
 
