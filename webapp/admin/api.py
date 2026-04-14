@@ -1146,6 +1146,43 @@ def alert_detail_pdf(alert_id):
         return redirect(url_for('api.alert_detail', alert_id=alert_id))
 
 
+@api_bp.route('/alerts/<int:alert_id>/export-image.png')
+def alert_detail_image(alert_id):
+    """Generate a Facebook-ready 1200×630 PNG social media image for an alert."""
+    try:
+        from app_utils.image_export import generate_alert_image
+        from app_core.location import get_location_settings
+
+        alert = CAPAlert.query.get_or_404(alert_id)
+
+        intersections = db.session.query(Intersection, Boundary).join(
+            Boundary, Intersection.boundary_id == Boundary.id
+        ).filter(Intersection.cap_alert_id == alert_id).all()
+
+        coverage_data = calculate_coverage_percentages(alert_id, intersections)
+        ipaws_data    = _extract_alert_display_data(alert)
+
+        try:
+            location_settings = get_location_settings()
+        except Exception:
+            location_settings = {}
+
+        png_bytes = generate_alert_image(alert, coverage_data, ipaws_data, location_settings)
+
+        response = Response(png_bytes, mimetype='image/png')
+        safe_event = (alert.event or 'alert').replace(' ', '_').lower()
+        response.headers['Content-Disposition'] = (
+            f'attachment; filename=alert_{alert_id}_{safe_event}.png'
+        )
+        response.headers['Cache-Control'] = 'no-cache'
+        return response
+
+    except Exception as exc:
+        api_bp.logger.error('Error generating alert image: %s', exc, exc_info=True)
+        flash('Error generating image. Please try again.', 'error')
+        return redirect(url_for('api.alert_detail', alert_id=alert_id))
+
+
 @api_bp.route('/alerts/<int:alert_id>/ipaws_audio')
 def ipaws_original_audio(alert_id):
     """Serve the original IPAWS audio file for an alert."""

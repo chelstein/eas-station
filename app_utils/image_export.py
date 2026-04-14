@@ -1,0 +1,688 @@
+"""
+EAS Station - Emergency Alert System
+Copyright (c) 2025-2026 Timothy Kramer (KR8MER)
+
+This file is part of EAS Station.
+
+EAS Station is dual-licensed software:
+- GNU Affero General Public License v3 (AGPL-3.0) for open-source use
+- Commercial License for proprietary use
+
+You should have received a copy of both licenses with this software.
+For more information, see LICENSE and LICENSE-COMMERCIAL files.
+
+IMPORTANT: This software cannot be rebranded or have attribution removed.
+See NOTICE file for complete terms.
+
+Repository: https://github.com/KR8MER/eas-station
+"""
+
+from __future__ import annotations
+
+"""Social media image export for alert details.
+
+Generates a Facebook-ready 1200×630 PNG for a given CAP alert containing:
+- Static OpenStreetMap tile background with the alert polygon drawn on top
+- Storm threat badges (tornado, wind, hail)
+- County coverage percentage with a progress bar
+- Service-boundary counts (fire, EMS, electric, …)
+- VTAC string and storm-motion summary
+- Affected area description
+- Alert header and footer with timing info
+
+The map tile layer is fetched live from OpenStreetMap.  If tiles are
+unavailable (network timeout, offline environment, …) the map area is
+replaced with a plain dark background; all data cards are unaffected.
+
+Usage::
+
+    from app_utils.image_export import generate_alert_image
+    png_bytes = generate_alert_image(alert, coverage_data, ipaws_data, location_settings)
+"""
+
+import io
+import json
+import math
+from typing import Any, Dict, List, Optional, Tuple
+
+import requests as _http
+from PIL import Image, ImageDraw, ImageFont
+
+# ─── Canvas dimensions (Facebook recommended: 1200×630) ────────────────────
+FB_WIDTH    = 1200
+FB_HEIGHT   = 630
+HEADER_H    = 90
+FOOTER_H    = 50
+BODY_H      = FB_HEIGHT - HEADER_H - FOOTER_H   # 490
+MAP_W       = 582
+MAP_H       = BODY_H                             # 490
+INFO_X      = MAP_W + 8                          # 590
+INFO_W      = FB_WIDTH - INFO_X - 8             # 594
+TILE_SIZE   = 256
+
+# ─── Colour palette ─────────────────────────────────────────────────────────
+_BG         = (22,  27,  38)
+_PANEL      = (30,  36,  51)
+_CARD       = (38,  45,  63)
+_STRIP      = (14,  18,  30)
+_DIVIDER    = (55,  65,  88)
+_TEXT       = (230, 235, 245)
+_TEXT_SEC   = (155, 165, 190)
+_TEXT_MUT   = ( 95, 108, 132)
+WHITE       = (255, 255, 255)
+
+_SEVERITY: Dict[str, Tuple[int, int, int]] = {
+    'extreme':  (220,  53,  69),
+    'severe':   (253, 126,  20),
+    'moderate': (255, 193,   7),
+    'minor':    ( 13, 110, 253),
+    'unknown':  (108, 117, 125),
+}
+_THREAT_CLR: Dict[str, Tuple[int, int, int]] = {
+    'observed': (220,  53,  69),
+    'radar':    (255, 193,   7),
+    'possible': (253, 126,  20),
+    'none':     ( 80,  95, 120),
+}
+
+
+# ─── Font loading ────────────────────────────────────────────────────────────
+def _load_fonts() -> Dict[str, ImageFont.FreeTypeFont]:
+    """Return a dict of sized fonts; falls back to Pillow built-in."""
+    _reg = [
+        '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+        '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
+        '/usr/share/fonts/truetype/freefont/FreeSans.ttf',
+    ]
+    _bold = [
+        '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+        '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf',
+        '/usr/share/fonts/truetype/freefont/FreeSansBold.ttf',
+    ]
+
+    def _load(paths: List[str], size: int) -> ImageFont.FreeTypeFont:
+        for p in paths:
+            try:
+                return ImageFont.truetype(p, size)
+            except (IOError, OSError):
+                pass
+        return ImageFont.load_default(size=size)
+
+    return {
+        'title':  _load(_bold, 30),
+        'head':   _load(_bold, 18),
+        'bold':   _load(_bold, 15),
+        'normal': _load(_reg,  14),
+        'small':  _load(_reg,  12),
+        'tiny':   _load(_reg,  11),
+        'label':  _load(_bold, 11),
+        'threat': _load(_bold, 15),
+        'mono':   _load(_reg,  11),
+    }
+
+
+# ─── Colour helpers ──────────────────────────────────────────────────────────
+def _darken(c: Tuple[int, int, int], f: float) -> Tuple[int, int, int]:
+    return tuple(max(0, int(v * (1.0 - f))) for v in c)  # type: ignore[return-value]
+
+
+def _pct_bar_color(pct: float) -> Tuple[int, int, int]:
+    if pct >= 95:  return (40, 167,  69)
+    if pct >= 75:  return (255, 193,   7)
+    if pct >= 50:  return ( 13, 110, 253)
+    return (108, 117, 125)
+
+
+# ─── Text measurement helpers ────────────────────────────────────────────────
+def _tw(font: ImageFont.FreeTypeFont, text: str) -> int:
+    bb = font.getbbox(text)
+    return bb[2] - bb[0]
+
+
+def _th(font: ImageFont.FreeTypeFont, text: str) -> int:
+    bb = font.getbbox(text)
+    return bb[3] - bb[1]
+
+
+def _truncate(font: ImageFont.FreeTypeFont, text: str, max_w: int) -> str:
+    """Truncate *text* with an ellipsis to fit within *max_w* pixels."""
+    if _tw(font, text) <= max_w:
+        return text
+    ellipsis = '…'
+    while len(text) > 0 and _tw(font, text + ellipsis) > max_w:
+        text = text[:-1]
+    return text + ellipsis
+
+
+# ─── OSM tile helpers ────────────────────────────────────────────────────────
+def _lon_to_tx(lon: float, z: int) -> float:
+    return (lon + 180.0) / 360.0 * (2 ** z)
+
+
+def _lat_to_ty(lat: float, z: int) -> float:
+    lat_r = math.radians(lat)
+    return (1.0 - math.log(math.tan(lat_r) + 1.0 / math.cos(lat_r)) / math.pi) / 2.0 * (2 ** z)
+
+
+def _geojson_bbox(geom: Dict) -> Optional[Tuple[float, float, float, float]]:
+    """Return (min_lon, min_lat, max_lon, max_lat) from a GeoJSON geometry."""
+    gtype = geom.get('type', '')
+    coords = geom.get('coordinates', [])
+    lons: List[float] = []
+    lats: List[float] = []
+
+    def _collect(ring: List) -> None:
+        for pt in ring:
+            lons.append(float(pt[0]))
+            lats.append(float(pt[1]))
+
+    if gtype == 'Polygon':
+        for ring in coords:
+            _collect(ring)
+    elif gtype == 'MultiPolygon':
+        for poly in coords:
+            for ring in poly:
+                _collect(ring)
+    elif gtype == 'Point' and coords:
+        lons.append(float(coords[0]))
+        lats.append(float(coords[1]))
+    else:
+        return None
+
+    if not lons:
+        return None
+    return (min(lons), min(lats), max(lons), max(lats))
+
+
+def _best_zoom(min_lon: float, min_lat: float, max_lon: float, max_lat: float,
+               map_w: int, map_h: int) -> int:
+    """Highest OSM zoom where bbox comfortably fits inside the map dimensions."""
+    for z in range(15, 3, -1):
+        tx1 = _lon_to_tx(min_lon, z)
+        tx2 = _lon_to_tx(max_lon, z)
+        ty1 = _lat_to_ty(max_lat, z)   # higher lat → lower tile-y
+        ty2 = _lat_to_ty(min_lat, z)
+        span_w = (tx2 - tx1) * TILE_SIZE
+        span_h = (ty2 - ty1) * TILE_SIZE
+        if span_w <= map_w * 0.60 and span_h <= map_h * 0.60:
+            return z
+    return 7
+
+
+def _fetch_tile(tx: int, ty: int, z: int) -> Optional[Image.Image]:
+    url = f'https://tile.openstreetmap.org/{z}/{tx}/{ty}.png'
+    try:
+        r = _http.get(
+            url, timeout=4,
+            headers={'User-Agent': 'EASStation/1.0 (+https://github.com/KR8MER/eas-station)'},
+        )
+        if r.status_code == 200:
+            return Image.open(io.BytesIO(r.content)).convert('RGB')
+    except Exception:
+        pass
+    return None
+
+
+def _render_map(geom: Dict, severity: str) -> Image.Image:
+    """Return a MAP_W×MAP_H RGB map image with the alert polygon overlaid."""
+    fallback = Image.new('RGB', (MAP_W, MAP_H), (35, 42, 62))
+    fd = ImageDraw.Draw(fallback)
+    msg = 'Map not available'
+    fonts = _load_fonts()
+    fd.text(((MAP_W - _tw(fonts['small'], msg)) // 2, MAP_H // 2 - 8),
+            msg, font=fonts['small'], fill=_TEXT_MUT)
+
+    bbox = _geojson_bbox(geom)
+    if bbox is None:
+        return fallback
+
+    min_lon, min_lat, max_lon, max_lat = bbox
+    lon_pad = max(max_lon - min_lon, 0.005) * 0.30
+    lat_pad = max(max_lat - min_lat, 0.005) * 0.30
+    min_lon -= lon_pad; max_lon += lon_pad
+    min_lat -= lat_pad; max_lat += lat_pad
+
+    z = _best_zoom(min_lon, min_lat, max_lon, max_lat, MAP_W, MAP_H)
+
+    tx_min = max(0,        int(math.floor(_lon_to_tx(min_lon, z))) - 1)
+    tx_max = min(2**z - 1, int(math.ceil( _lon_to_tx(max_lon, z))) + 1)
+    ty_min = max(0,        int(math.floor(_lat_to_ty(max_lat, z))) - 1)
+    ty_max = min(2**z - 1, int(math.ceil( _lat_to_ty(min_lat, z))) + 1)
+
+    n_tiles = (tx_max - tx_min + 1) * (ty_max - ty_min + 1)
+    if n_tiles > 30:
+        return fallback
+
+    canvas_w = (tx_max - tx_min + 1) * TILE_SIZE
+    canvas_h = (ty_max - ty_min + 1) * TILE_SIZE
+    canvas = Image.new('RGB', (canvas_w, canvas_h), (200, 200, 200))
+
+    for ty in range(ty_min, ty_max + 1):
+        for tx in range(tx_min, tx_max + 1):
+            tile = _fetch_tile(tx, ty, z)
+            if tile:
+                canvas.paste(tile, ((tx - tx_min) * TILE_SIZE, (ty - ty_min) * TILE_SIZE))
+
+    # Build polygon pixel-coordinate lists
+    alr_clr = _SEVERITY.get(severity.lower(), _SEVERITY['unknown'])
+
+    def _to_px(ring: List) -> List[Tuple[int, int]]:
+        pts = []
+        for pt in ring:
+            px = int((_lon_to_tx(float(pt[0]), z) - tx_min) * TILE_SIZE)
+            py = int((_lat_to_ty(float(pt[1]), z) - ty_min) * TILE_SIZE)
+            pts.append((px, py))
+        return pts
+
+    gtype = geom.get('type', '')
+    raw_coords = geom.get('coordinates', [])
+    rings: List[List] = []
+    if gtype == 'Polygon':
+        rings = raw_coords
+    elif gtype == 'MultiPolygon':
+        rings = [r for poly in raw_coords for r in poly]
+
+    # Semi-transparent fill via RGBA overlay
+    overlay = Image.new('RGBA', canvas.size, (0, 0, 0, 0))
+    ov = ImageDraw.Draw(overlay)
+    for ring in rings:
+        pts = _to_px(ring)
+        if len(pts) >= 3:
+            ov.polygon(pts, fill=(*alr_clr, 65))
+
+    canvas = Image.alpha_composite(canvas.convert('RGBA'), overlay).convert('RGB')
+
+    # Solid outline on top
+    od = ImageDraw.Draw(canvas)
+    for ring in rings:
+        pts = _to_px(ring)
+        if len(pts) >= 2:
+            od.line(pts + [pts[0]], fill=alr_clr, width=3)
+
+    # Crop to MAP_W × MAP_H centred on the padded bbox
+    cx = int((_lon_to_tx((min_lon + max_lon) / 2, z) - tx_min) * TILE_SIZE)
+    cy = int((_lat_to_ty((min_lat + max_lat) / 2, z) - ty_min) * TILE_SIZE)
+
+    x1 = max(0, cx - MAP_W // 2)
+    y1 = max(0, cy - MAP_H // 2)
+    x2 = min(canvas_w, x1 + MAP_W)
+    y2 = min(canvas_h, y1 + MAP_H)
+
+    if x2 - x1 < MAP_W:
+        x1 = max(0, x2 - MAP_W)
+    if y2 - y1 < MAP_H:
+        y1 = max(0, y2 - MAP_H)
+
+    cropped = canvas.crop((x1, y1, x2, y2))
+    if cropped.size != (MAP_W, MAP_H):
+        cropped = cropped.resize((MAP_W, MAP_H), Image.LANCZOS)
+    return cropped
+
+
+# ─── Drawing helpers ─────────────────────────────────────────────────────────
+def _section_header(draw: ImageDraw.ImageDraw, fonts: Dict,
+                    alr_clr: Tuple, ix: int, iy: int, iw: int, title: str) -> int:
+    """Draw a coloured section header; return y after it."""
+    h = 20
+    draw.rectangle((ix, iy, ix + iw, iy + h), fill=_darken(alr_clr, 0.25))
+    draw.text((ix + 7, iy + (h - _th(fonts['label'], title)) // 2),
+              title, font=fonts['label'], fill=WHITE)
+    return iy + h + 2
+
+
+def _card_row(draw: ImageDraw.ImageDraw, ix: int, iy: int, iw: int, h: int) -> None:
+    """Fill a single card-row background."""
+    draw.rectangle((ix, iy, ix + iw, iy + h - 1), fill=_CARD)
+
+
+# ─── Main public function ─────────────────────────────────────────────────────
+def generate_alert_image(
+    alert: Any,
+    coverage_data: Dict[str, Any],
+    ipaws_data: Optional[Dict[str, Any]],
+    location_settings: Optional[Dict[str, Any]],
+) -> bytes:
+    """Generate a 1200×630 Facebook-ready PNG for *alert*.
+
+    Args:
+        alert:             CAPAlert model instance.
+        coverage_data:     Dict returned by calculate_coverage_percentages().
+        ipaws_data:        Dict returned by _extract_alert_display_data(), may be None.
+        location_settings: Dict from get_location_settings(), may be None.
+
+    Returns:
+        Raw PNG bytes.
+    """
+    fonts = _load_fonts()
+
+    severity    = (getattr(alert, 'severity', '') or '').lower()
+    alr_clr     = _SEVERITY.get(severity, _SEVERITY['unknown'])
+    event_name  = (getattr(alert, 'event', '') or 'Alert').upper()
+    county_name = (location_settings or {}).get('county_name', 'County') or 'County'
+
+    # ── Base canvas ──────────────────────────────────────────────────────────
+    img  = Image.new('RGB', (FB_WIDTH, FB_HEIGHT), _BG)
+    draw = ImageDraw.Draw(img)
+
+    # ── Header bar ───────────────────────────────────────────────────────────
+    draw.rectangle((0, 0, FB_WIDTH, HEADER_H), fill=alr_clr)
+    draw.rectangle((0, HEADER_H - 36, FB_WIDTH, HEADER_H), fill=_darken(alr_clr, 0.30))
+
+    # Event name (left)
+    draw.text((16, 10), event_name, font=fonts['title'], fill=WHITE)
+
+    # Status sub-line
+    sub_parts = []
+    for attr, label in [('status', 'Status'), ('severity', 'Severity'),
+                        ('urgency', 'Urgency'), ('certainty', 'Certainty')]:
+        val = getattr(alert, attr, '') or ''
+        if val:
+            sub_parts.append(f'{label}: {val}')
+    sub_text = '  |  '.join(sub_parts)
+    draw.text((18, 52), sub_text, font=fonts['small'], fill=(*WHITE, 200))  # type: ignore[arg-type]
+
+    # Branding (top-right)
+    brand = 'EAS STATION'
+    draw.text((FB_WIDTH - _tw(fonts['head'], brand) - 16, 10),
+              brand, font=fonts['head'], fill=WHITE)
+
+    # Sent time (right, lower)
+    try:
+        from app_core.eas_storage import format_local_datetime
+        if getattr(alert, 'sent', None):
+            sent_str = format_local_datetime(alert.sent, include_utc=False)
+            draw.text((FB_WIDTH - _tw(fonts['small'], sent_str) - 16, 55),
+                      sent_str, font=fonts['small'], fill=(*WHITE, 180))  # type: ignore[arg-type]
+    except Exception:
+        pass
+
+    # ── Map (left side) ──────────────────────────────────────────────────────
+    map_img: Optional[Image.Image] = None
+    try:
+        from app_core.extensions import db
+        from app_core.models import CAPAlert as _CA
+        from sqlalchemy import func as _func
+        alert_id = getattr(alert, 'id', None)
+        if alert_id is not None:
+            geom_json = (
+                db.session.query(_func.ST_AsGeoJSON(_CA.geom))
+                .filter(_CA.id == alert_id)
+                .scalar()
+            )
+            if geom_json:
+                map_img = _render_map(json.loads(geom_json), severity)
+    except Exception:
+        pass
+
+    if map_img is None:
+        map_img = Image.new('RGB', (MAP_W, MAP_H), (34, 42, 60))
+        md = ImageDraw.Draw(map_img)
+        lbl = 'Map not available'
+        md.text(((MAP_W - _tw(fonts['small'], lbl)) // 2, MAP_H // 2 - 8),
+                lbl, font=fonts['small'], fill=_TEXT_MUT)
+
+    img.paste(map_img, (0, HEADER_H))
+
+    # Thin vertical separator
+    draw.line([(MAP_W, HEADER_H), (MAP_W, FB_HEIGHT - FOOTER_H)],
+              fill=_darken(alr_clr, 0.20), width=3)
+
+    # ── Info panel (right side) ───────────────────────────────────────────────
+    ix  = INFO_X
+    iw  = INFO_W
+    iy  = HEADER_H + 8
+    bot = FB_HEIGHT - FOOTER_H - 6
+
+    iy = _draw_threats(draw, fonts, alr_clr, ix, iy, iw, bot, ipaws_data)
+    iy = _draw_coverage(draw, fonts, alr_clr, ix, iy, iw, bot, coverage_data, county_name)
+    iy = _draw_vtac(draw, fonts, alr_clr, ix, iy, iw, bot, ipaws_data)
+    iy = _draw_areas(draw, fonts, alr_clr, ix, iy, iw, bot, alert)
+
+    # ── Footer ────────────────────────────────────────────────────────────────
+    fy = FB_HEIGHT - FOOTER_H
+    draw.rectangle((0, fy, FB_WIDTH, FB_HEIGHT), fill=_STRIP)
+    draw.line([(0, fy), (FB_WIDTH, fy)], fill=_DIVIDER, width=1)
+
+    timing: List[str] = []
+    try:
+        from app_core.eas_storage import format_local_datetime
+        if getattr(alert, 'sent', None):
+            timing.append(f"Issued: {format_local_datetime(alert.sent, include_utc=False)}")
+        if getattr(alert, 'expires', None):
+            timing.append(f"Expires: {format_local_datetime(alert.expires, include_utc=False)}")
+    except Exception:
+        pass
+
+    if timing:
+        t_str = '   |   '.join(timing)
+        ty_pos = fy + (FOOTER_H - _th(fonts['small'], t_str)) // 2
+        draw.text((12, ty_pos), t_str, font=fonts['small'], fill=_TEXT_SEC)
+
+    credit = 'EAS Station  •  Emergency Alert System'
+    cy_pos = fy + (FOOTER_H - _th(fonts['small'], credit)) // 2
+    draw.text((FB_WIDTH - _tw(fonts['small'], credit) - 12, cy_pos),
+              credit, font=fonts['small'], fill=_TEXT_MUT)
+
+    # ── Serialise ────────────────────────────────────────────────────────────
+    buf = io.BytesIO()
+    img.save(buf, format='PNG', optimize=True)
+    return buf.getvalue()
+
+
+# ─── Info-panel section drawers ───────────────────────────────────────────────
+def _draw_threats(draw: ImageDraw.ImageDraw, fonts: Dict, alr_clr: Tuple,
+                  ix: int, iy: int, iw: int, bot: int,
+                  ipaws_data: Optional[Dict]) -> int:
+    threat_data = (ipaws_data or {}).get('threat_data', {})
+    if not threat_data:
+        return iy
+
+    iy = _section_header(draw, fonts, alr_clr, ix, iy, iw, 'STORM THREATS')
+
+    rows = [
+        ('tornado', 'Tornado'),
+        ('wind',    'Wind'),
+        ('hail',    'Hail'),
+    ]
+    for key, label in rows:
+        t = threat_data.get(key)
+        if not t:
+            continue
+        level   = t.get('level', 'none')
+        lvl_clr = _THREAT_CLR.get(level, _THREAT_CLR['none'])
+        display = t.get('display', '')
+
+        row_h = 27
+        if iy + row_h > bot:
+            break
+        _card_row(draw, ix, iy, iw, row_h)
+
+        # Coloured level dot
+        dot_x, dot_y = ix + 14, iy + row_h // 2
+        draw.ellipse((dot_x - 6, dot_y - 6, dot_x + 6, dot_y + 6), fill=lvl_clr)
+
+        # Label
+        lx = dot_x + 12
+        draw.text((lx, iy + (row_h - _th(fonts['bold'], label)) // 2),
+                  f'{label}:', font=fonts['bold'], fill=_TEXT)
+
+        # Display level
+        val_x = lx + _tw(fonts['bold'], f'{label}:') + 8
+        draw.text((val_x, iy + (row_h - _th(fonts['normal'], display)) // 2),
+                  display, font=fonts['normal'], fill=_TEXT)
+
+        # Extra detail
+        extra = ''
+        if key == 'wind' and t.get('gust'):
+            extra = f"  {t['gust']} {t.get('gust_unit', 'MPH')}"
+        elif key == 'hail' and t.get('size'):
+            desc = t.get('descriptor', '')
+            extra = f"  {t['size']}\" ({desc})" if desc else f"  {t['size']}\""
+        if extra:
+            ex_x = val_x + _tw(fonts['normal'], display)
+            ex_str = _truncate(fonts['small'], extra, iw - (ex_x - ix) - 6)
+            draw.text((ex_x, iy + (row_h - _th(fonts['small'], ex_str)) // 2),
+                      ex_str, font=fonts['small'], fill=_TEXT_SEC)
+
+        iy += row_h + 2
+
+    return iy + 6
+
+
+def _draw_coverage(draw: ImageDraw.ImageDraw, fonts: Dict, alr_clr: Tuple,
+                   ix: int, iy: int, iw: int, bot: int,
+                   coverage_data: Dict, county_name: str) -> int:
+    if not coverage_data:
+        return iy
+
+    iy = _section_header(draw, fonts, alr_clr, ix, iy, iw, 'COVERAGE')
+
+    county = coverage_data.get('county', {})
+    if county:
+        pct   = float(county.get('coverage_percentage', 0))
+        est   = county.get('is_estimated', False)
+        row_h = 32
+        if iy + row_h <= bot:
+            _card_row(draw, ix, iy, iw, row_h)
+
+            # Percentage label
+            tag  = ' (est.)' if est else ''
+            lbl  = f'{pct:.1f}%{tag} of {county_name}'
+            lbl  = _truncate(fonts['small'], lbl, iw - 16)
+            draw.text((ix + 8, iy + 4), lbl, font=fonts['small'], fill=_TEXT)
+
+            # Progress bar
+            bar_x, bar_y = ix + 8, iy + 21
+            bar_w, bar_h = iw - 16, 6
+            draw.rounded_rectangle((bar_x, bar_y, bar_x + bar_w, bar_y + bar_h),
+                                   radius=3, fill=(55, 65, 88))
+            fill_w = max(4, int(bar_w * min(pct, 100) / 100))
+            draw.rounded_rectangle((bar_x, bar_y, bar_x + fill_w, bar_y + bar_h),
+                                   radius=3, fill=_pct_bar_color(pct))
+            iy += row_h + 3
+
+    # Service counts row
+    svc_parts: List[str] = []
+    for stype, sdata in sorted(coverage_data.items()):
+        if stype == 'county':
+            continue
+        affected = int(sdata.get('affected_boundaries', 0) or 0)
+        total    = int(sdata.get('total_boundaries',    0) or 0)
+        if total > 0:
+            svc_parts.append(f'{stype.title()}: {affected}/{total}')
+
+    if svc_parts and iy + 22 <= bot:
+        _card_row(draw, ix, iy, iw, 22)
+        svc_text = _truncate(fonts['tiny'], '  ·  '.join(svc_parts), iw - 14)
+        draw.text((ix + 7, iy + (22 - _th(fonts['tiny'], svc_text)) // 2),
+                  svc_text, font=fonts['tiny'], fill=_TEXT_SEC)
+        iy += 24
+
+    return iy + 6
+
+
+def _draw_vtac(draw: ImageDraw.ImageDraw, fonts: Dict, alr_clr: Tuple,
+               ix: int, iy: int, iw: int, bot: int,
+               ipaws_data: Optional[Dict]) -> int:
+    vtec_list  = (ipaws_data or {}).get('vtec_parsed', [])
+    storm      = (ipaws_data or {}).get('storm_motion', {})
+    nws_head   = (ipaws_data or {}).get('nws_headline', '')
+
+    if not vtec_list and not storm and not nws_head:
+        return iy
+
+    iy = _section_header(draw, fonts, alr_clr, ix, iy, iw, 'VTAC / MOTION')
+
+    for vtec in vtec_list[:3]:
+        raw = vtec.get('raw', '') if isinstance(vtec, dict) else str(vtec)
+        if not raw:
+            continue
+        # Prefer decoded labels when available
+        if isinstance(vtec, dict) and vtec.get('phenomenon_label') and vtec.get('action_label'):
+            phen  = vtec.get('phenomenon_label', '')
+            act   = vtec.get('action_label', '')
+            office = vtec.get('office', '')
+            etn   = vtec.get('event_number', '')
+            decoded = f'{act} — {phen}  ({office} #{etn})' if office else f'{act} — {phen}'
+            display = decoded
+        else:
+            display = raw
+
+        row_h = 22
+        if iy + row_h > bot:
+            break
+        _card_row(draw, ix, iy, iw, row_h)
+        draw.text((ix + 7, iy + (row_h - _th(fonts['small'], display)) // 2),
+                  _truncate(fonts['small'], display, iw - 14),
+                  font=fonts['small'], fill=_TEXT)
+        iy += row_h + 2
+
+        # Raw string on a sub-row
+        if raw and raw != display and iy + 18 <= bot:
+            _card_row(draw, ix, iy, iw, 18)
+            draw.text((ix + 12, iy + (18 - _th(fonts['mono'], raw)) // 2),
+                      _truncate(fonts['mono'], raw, iw - 20),
+                      font=fonts['mono'], fill=_TEXT_MUT)
+            iy += 18 + 2
+
+    # Storm motion row
+    if storm and iy + 24 <= bot:
+        speed_mph = storm.get('speed_mph', '')
+        compass   = storm.get('compass', '')
+        toward    = storm.get('compass_toward', '')
+        if speed_mph or compass:
+            parts = []
+            if compass:
+                parts.append(f'From {compass}')
+            if speed_mph:
+                parts.append(f'{speed_mph} MPH')
+            if toward:
+                parts.append(f'toward {toward}')
+            motion = 'Motion: ' + '  ·  '.join(parts)
+            _card_row(draw, ix, iy, iw, 24)
+            draw.text((ix + 7, iy + (24 - _th(fonts['small'], motion)) // 2),
+                      _truncate(fonts['small'], motion, iw - 14),
+                      font=fonts['small'], fill=_TEXT_SEC)
+            iy += 26
+
+    return iy + 6
+
+
+def _draw_areas(draw: ImageDraw.ImageDraw, fonts: Dict, alr_clr: Tuple,
+                ix: int, iy: int, iw: int, bot: int, alert: Any) -> int:
+    area_desc = (getattr(alert, 'area_desc', '') or '').strip()
+    if not area_desc or iy + 30 > bot:
+        return iy
+
+    iy = _section_header(draw, fonts, alr_clr, ix, iy, iw, 'AFFECTED AREAS')
+
+    # Split on semicolons, clean up, display up to ~3 rows
+    segments = [s.strip() for s in area_desc.split(';') if s.strip()]
+    font = fonts['small']
+    row_h = 21
+
+    # Try to fit all segments on as few rows as possible
+    current_line = ''
+    for seg in segments:
+        candidate = f'{current_line}; {seg}' if current_line else seg
+        if _tw(font, candidate) <= iw - 14:
+            current_line = candidate
+        else:
+            if current_line and iy + row_h <= bot:
+                _card_row(draw, ix, iy, iw, row_h)
+                draw.text((ix + 7, iy + (row_h - _th(font, current_line)) // 2),
+                          current_line, font=font, fill=_TEXT)
+                iy += row_h + 1
+            current_line = seg
+
+    if current_line and iy + row_h <= bot:
+        _card_row(draw, ix, iy, iw, row_h)
+        line = _truncate(font, current_line, iw - 14)
+        draw.text((ix + 7, iy + (row_h - _th(font, line)) // 2),
+                  line, font=font, fill=_TEXT)
+        iy += row_h + 1
+
+    return iy + 4
+
+
+__all__ = ['generate_alert_image']
