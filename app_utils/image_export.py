@@ -223,7 +223,73 @@ def _fetch_tile(tx: int, ty: int, z: int) -> Optional[Image.Image]:
     return None
 
 
-def _render_map(geom: Dict, severity: str) -> Image.Image:
+def _draw_storm_track(od: ImageDraw.ImageDraw, storm: Dict,
+                      z: int, tx_min: int, ty_min: int) -> None:
+    """Draw the storm motion track line and directional arrowhead on *od*."""
+    track      = storm.get('track', [])
+    toward_deg = storm.get('toward_deg')
+
+    pts: List[Tuple[int, int]] = []
+    for point in track:
+        try:
+            lat, lon = float(point[0]), float(point[1])
+            px = int((_lon_to_tx(lon, z) - tx_min) * TILE_SIZE)
+            py = int((_lat_to_ty(lat, z) - ty_min) * TILE_SIZE)
+            pts.append((px, py))
+        except (TypeError, IndexError, ValueError):
+            continue
+
+    if not pts:
+        return
+
+    _TRACK   = (255, 230,   0)   # bright yellow
+    _SHADOW  = (  0,   0,   0)   # black drop-shadow for contrast
+
+    # Track line (shadow then yellow)
+    if len(pts) >= 2:
+        od.line(pts, fill=_SHADOW, width=5)
+        od.line(pts, fill=_TRACK,  width=3)
+
+    # Waypoint circles (larger circle at newest / last point)
+    for i, (px, py) in enumerate(pts):
+        r = 5 if i == len(pts) - 1 else 3
+        od.ellipse((px - r - 1, py - r - 1, px + r + 1, py + r + 1), fill=_SHADOW)
+        od.ellipse((px - r,     py - r,     px + r,     py + r),     fill=_TRACK)
+
+    # Arrowhead at the newest track point pointing in the direction of travel
+    if toward_deg is not None:
+        last_x, last_y = pts[-1]
+        ang = math.radians(toward_deg)
+        dx  =  math.sin(ang)          # eastward screen component
+        dy  = -math.cos(ang)          # screen y grows downward → negate
+
+        arrow_len = 24
+        wing_len  = 11
+        wing_ang  = 0.45   # ~26°
+
+        tip_x = last_x + int(dx * arrow_len)
+        tip_y = last_y + int(dy * arrow_len)
+
+        def _wing(sign: int) -> Tuple[int, int]:
+            wx = tip_x - int((dx * math.cos(sign * wing_ang)
+                              - dy * math.sin(sign * wing_ang)) * wing_len)
+            wy = tip_y - int((dy * math.cos(sign * wing_ang)
+                              + dx * math.sin(sign * wing_ang)) * wing_len)
+            return (wx, wy)
+
+        lw = _wing(+1)
+        rw = _wing(-1)
+
+        # Shadow
+        so = 2
+        od.polygon([(tip_x + so, tip_y + so), (lw[0] + so, lw[1] + so),
+                    (rw[0] + so, rw[1] + so)], fill=_SHADOW)
+        # Arrow fill
+        od.polygon([(tip_x, tip_y), lw, rw], fill=_TRACK)
+
+
+def _render_map(geom: Dict, severity: str,
+                storm_motion: Optional[Dict] = None) -> Image.Image:
     """Return a MAP_W×MAP_H RGB map image with the alert polygon overlaid."""
     fallback = Image.new('RGB', (MAP_W, MAP_H), (35, 42, 62))
     fd = ImageDraw.Draw(fallback)
@@ -298,6 +364,10 @@ def _render_map(geom: Dict, severity: str) -> Image.Image:
         pts = _to_px(ring)
         if len(pts) >= 2:
             od.line(pts + [pts[0]], fill=alr_clr, width=3)
+
+    # Storm motion track + arrowhead
+    if storm_motion:
+        _draw_storm_track(od, storm_motion, z, tx_min, ty_min)
 
     # Crop to MAP_W × MAP_H centred on the padded bbox
     cx = int((_lon_to_tx((min_lon + max_lon) / 2, z) - tx_min) * TILE_SIZE)
@@ -397,6 +467,7 @@ def generate_alert_image(
         pass
 
     # ── Map (left side) ──────────────────────────────────────────────────────
+    storm_motion = (ipaws_data or {}).get('storm_motion')
     map_img: Optional[Image.Image] = None
     try:
         from app_core.extensions import db
@@ -410,7 +481,8 @@ def generate_alert_image(
                 .scalar()
             )
             if geom_json:
-                map_img = _render_map(json.loads(geom_json), severity)
+                map_img = _render_map(json.loads(geom_json), severity,
+                                      storm_motion=storm_motion)
     except Exception:
         pass
 
@@ -437,6 +509,7 @@ def generate_alert_image(
     iy = _draw_coverage(draw, fonts, alr_clr, ix, iy, iw, bot, coverage_data, county_name)
     iy = _draw_vtac(draw, fonts, alr_clr, ix, iy, iw, bot, ipaws_data)
     iy = _draw_areas(draw, fonts, alr_clr, ix, iy, iw, bot, alert)
+    iy = _draw_headline(draw, fonts, alr_clr, ix, iy, iw, bot, alert)
 
     # ── Footer ────────────────────────────────────────────────────────────────
     fy = FB_HEIGHT - FOOTER_H
@@ -469,64 +542,141 @@ def generate_alert_image(
     return buf.getvalue()
 
 
+# ─── Threat-card icon helpers ─────────────────────────────────────────────────
+def _icon_wind(draw: ImageDraw.ImageDraw, cx: int, cy: int,
+               color: Tuple[int, int, int]) -> None:
+    """Three descending-width pill bars representing wind gusts."""
+    bars    = [(32, 0), (25, 0), (18, 0)]  # (width, x-offset)
+    bar_h   = 6
+    spacing = 5
+    total_h = len(bars) * bar_h + (len(bars) - 1) * spacing
+    y0 = cy - total_h // 2
+    for i, (w, xo) in enumerate(bars):
+        y = y0 + i * (bar_h + spacing)
+        x0 = cx - w // 2 + xo
+        draw.rounded_rectangle((x0, y, x0 + w, y + bar_h), radius=3, fill=color)
+
+
+def _icon_hail(draw: ImageDraw.ImageDraw, cx: int, cy: int,
+               color: Tuple[int, int, int]) -> None:
+    """Simple cloud arc with hailstone circles beneath it."""
+    r = 12
+    # Cloud top: semicircle arc
+    draw.arc((cx - r, cy - r - 4, cx + r, cy + r - 4),
+             start=180, end=360, fill=color, width=3)
+    # Cloud base: horizontal line connecting the arc ends
+    draw.line([(cx - r, cy + r - 5), (cx + r, cy + r - 5)], fill=color, width=3)
+    # Hailstones (2 rows of dots)
+    for dx, dy in [(-8, 9), (0, 9), (8, 9), (-4, 16), (4, 16)]:
+        rr = 3
+        draw.ellipse((cx + dx - rr, cy + dy - rr, cx + dx + rr, cy + dy + rr),
+                     fill=color)
+
+
+def _icon_tornado(draw: ImageDraw.ImageDraw, cx: int, cy: int,
+                  color: Tuple[int, int, int]) -> None:
+    """Tapering funnel (wide at top, narrowing to a point)."""
+    widths  = [30, 22, 15, 9, 4]
+    bar_h   = 5
+    spacing = 4
+    total_h = len(widths) * bar_h + (len(widths) - 1) * spacing
+    y0 = cy - total_h // 2
+    for i, w in enumerate(widths):
+        y = y0 + i * (bar_h + spacing)
+        x0 = cx - w // 2
+        draw.rounded_rectangle((x0, y, x0 + w, y + bar_h), radius=2, fill=color)
+    # Narrow tail below the funnel
+    tail_y = y0 + total_h
+    draw.line([(cx, tail_y), (cx, tail_y + 6)], fill=color, width=2)
+
+
+_ICON_FN = {
+    'wind':    _icon_wind,
+    'hail':    _icon_hail,
+    'tornado': _icon_tornado,
+}
+
+
 # ─── Info-panel section drawers ───────────────────────────────────────────────
 def _draw_threats(draw: ImageDraw.ImageDraw, fonts: Dict, alr_clr: Tuple,
                   ix: int, iy: int, iw: int, bot: int,
                   ipaws_data: Optional[Dict]) -> int:
+    """Draw graphical threat cards — one card per active hazard."""
     threat_data = (ipaws_data or {}).get('threat_data', {})
     if not threat_data:
         return iy
 
+    # Collect present threats in display order
+    active = [(k, threat_data[k]) for k in ('tornado', 'wind', 'hail')
+              if threat_data.get(k)]
+    if not active:
+        return iy
+
     iy = _section_header(draw, fonts, alr_clr, ix, iy, iw, 'STORM THREATS')
 
-    rows = [
-        ('tornado', 'Tornado'),
-        ('wind',    'Wind'),
-        ('hail',    'Hail'),
-    ]
-    for key, label in rows:
-        t = threat_data.get(key)
-        if not t:
-            continue
+    n       = len(active)
+    gap     = 5
+    card_w  = (iw - gap * (n - 1)) // n
+    card_h  = 108
+    if iy + card_h > bot:
+        return iy
+
+    for i, (key, t) in enumerate(active):
+        cx   = ix + i * (card_w + gap)
+        cy   = iy
+        ce_x = cx + card_w // 2   # card horizontal centre
+
         level   = t.get('level', 'none')
         lvl_clr = _THREAT_CLR.get(level, _THREAT_CLR['none'])
-        display = t.get('display', '')
 
-        row_h = 27
-        if iy + row_h > bot:
-            break
-        _card_row(draw, ix, iy, iw, row_h)
+        # Card background: slight colour tint based on threat level
+        bg = tuple(int(lvl_clr[j] * 0.18 + _CARD[j] * 0.82) for j in range(3))
 
-        # Coloured level dot
-        dot_x, dot_y = ix + 14, iy + row_h // 2
-        draw.ellipse((dot_x - 6, dot_y - 6, dot_x + 6, dot_y + 6), fill=lvl_clr)
+        draw.rounded_rectangle((cx, cy, cx + card_w, cy + card_h),
+                               radius=7, fill=bg,
+                               outline=lvl_clr, width=1)
 
-        # Label
-        lx = dot_x + 12
-        draw.text((lx, iy + (row_h - _th(fonts['bold'], label)) // 2),
-                  f'{label}:', font=fonts['bold'], fill=_TEXT)
+        # ── Icon (top section) ──────────────────────────────────────────────
+        icon_fn = _ICON_FN.get(key)
+        if icon_fn:
+            icon_fn(draw, ce_x, cy + 28, lvl_clr)
 
-        # Display level
-        val_x = lx + _tw(fonts['bold'], f'{label}:') + 8
-        draw.text((val_x, iy + (row_h - _th(fonts['normal'], display)) // 2),
-                  display, font=fonts['normal'], fill=_TEXT)
+        # ── Primary value (large number or short label) ─────────────────────
+        if key == 'wind':
+            val = t.get('gust', '')
+            unit = t.get('gust_unit', 'MPH')
+        elif key == 'hail':
+            size = t.get('size', '')
+            val  = f'{size}"' if size else ''
+            unit = t.get('descriptor', '')
+        else:  # tornado
+            val  = t.get('display', '')
+            unit = ''
 
-        # Extra detail
-        extra = ''
-        if key == 'wind' and t.get('gust'):
-            extra = f"  {t['gust']} {t.get('gust_unit', 'MPH')}"
-        elif key == 'hail' and t.get('size'):
-            desc = t.get('descriptor', '')
-            extra = f"  {t['size']}\" ({desc})" if desc else f"  {t['size']}\""
-        if extra:
-            ex_x = val_x + _tw(fonts['normal'], display)
-            ex_str = _truncate(fonts['small'], extra, iw - (ex_x - ix) - 6)
-            draw.text((ex_x, iy + (row_h - _th(fonts['small'], ex_str)) // 2),
-                      ex_str, font=fonts['small'], fill=_TEXT_SEC)
+        vfont = fonts['head']   # 18 pt bold
+        vw    = _tw(vfont, val)
+        draw.text((ce_x - vw // 2, cy + 52), val, font=vfont, fill=_TEXT)
 
-        iy += row_h + 2
+        # ── Unit / descriptor ───────────────────────────────────────────────
+        if unit:
+            uw = _tw(fonts['tiny'], unit)
+            draw.text((ce_x - uw // 2, cy + 73), unit,
+                      font=fonts['tiny'], fill=_TEXT_SEC)
 
-    return iy + 6
+        # ── Threat level (coloured) ─────────────────────────────────────────
+        disp = t.get('display', '') if key != 'tornado' else ''
+        if disp and key in ('wind', 'hail'):
+            dw = _tw(fonts['tiny'], disp)
+            draw.text((ce_x - dw // 2, cy + 84), disp,
+                      font=fonts['tiny'], fill=lvl_clr)
+
+        # ── Category label at bottom ────────────────────────────────────────
+        cat = key.upper()
+        cw  = _tw(fonts['label'], cat)
+        draw.text((ce_x - cw // 2, cy + 95), cat,
+                  font=fonts['label'], fill=_TEXT_MUT)
+
+    return iy + card_h + 6
 
 
 def _draw_coverage(draw: ImageDraw.ImageDraw, fonts: Dict, alr_clr: Tuple,
@@ -681,6 +831,81 @@ def _draw_areas(draw: ImageDraw.ImageDraw, fonts: Dict, alr_clr: Tuple,
         draw.text((ix + 7, iy + (row_h - _th(font, line)) // 2),
                   line, font=font, fill=_TEXT)
         iy += row_h + 1
+
+    return iy + 4
+
+
+def _draw_headline(draw: ImageDraw.ImageDraw, fonts: Dict, alr_clr: Tuple,
+                   ix: int, iy: int, iw: int, bot: int, alert: Any) -> int:
+    """Draw the alert headline (bold) and opening of description (muted).
+
+    The headline is word-wrapped to at most 3 lines.  The first sentence of the
+    description fills whatever space remains, truncated as needed.
+    """
+    headline = (getattr(alert, 'headline',    '') or '').strip()
+    desc     = (getattr(alert, 'description', '') or '').strip()
+
+    if not headline and not desc:
+        return iy
+    if iy + 28 > bot:
+        return iy
+
+    iy = _section_header(draw, fonts, alr_clr, ix, iy, iw, 'DETAILS')
+
+    # ── Headline: word-wrap up to 3 lines ────────────────────────────────────
+    if headline:
+        words = headline.split()
+        lines: List[str] = []
+        line  = ''
+        for word in words:
+            candidate = (line + ' ' + word).strip()
+            if _tw(fonts['bold'], candidate) <= iw - 14:
+                line = candidate
+            else:
+                if line:
+                    lines.append(line)
+                line = word
+        if line:
+            lines.append(line)
+
+        for ltext in lines[:3]:
+            row_h = 22
+            if iy + row_h > bot:
+                break
+            _card_row(draw, ix, iy, iw, row_h)
+            draw.text((ix + 7, iy + (row_h - _th(fonts['bold'], ltext)) // 2),
+                      ltext, font=fonts['bold'], fill=_TEXT)
+            iy += row_h + 1
+
+    # ── Description: first sentence, then word-wrap up to 4 lines ────────────
+    if desc and iy + 20 <= bot:
+        # Collapse newlines, grab text before the first double-newline paragraph
+        flat = ' '.join(desc.replace('\r\n', '\n').replace('\r', '\n').split('\n'))
+        # Trim to first ~400 chars to keep it snappy
+        flat = flat[:400]
+
+        words = flat.split()
+        lines2: List[str] = []
+        line2 = ''
+        for word in words:
+            candidate = (line2 + ' ' + word).strip()
+            if _tw(fonts['small'], candidate) <= iw - 14:
+                line2 = candidate
+            else:
+                if line2:
+                    lines2.append(line2)
+                line2 = word
+        if line2:
+            lines2.append(line2)
+
+        for ltext in lines2[:4]:
+            row_h = 19
+            if iy + row_h > bot:
+                break
+            _card_row(draw, ix, iy, iw, row_h)
+            draw.text((ix + 7, iy + (row_h - _th(fonts['small'], ltext)) // 2),
+                      ltext, font=fonts['small'], fill=_TEXT_SEC)
+            iy += row_h + 1
 
     return iy + 4
 
