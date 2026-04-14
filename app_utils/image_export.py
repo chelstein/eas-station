@@ -194,6 +194,14 @@ def _geojson_bbox(geom: Dict) -> Optional[Tuple[float, float, float, float]]:
     return (min(lons), min(lats), max(lons), max(lats))
 
 
+def _geojson_centroid(geom: Dict) -> Optional[Tuple[float, float]]:
+    """Return (lon, lat) bounding-box centre of a GeoJSON geometry."""
+    bbox = _geojson_bbox(geom)
+    if bbox is None:
+        return None
+    return ((bbox[0] + bbox[2]) / 2.0, (bbox[1] + bbox[3]) / 2.0)
+
+
 def _best_zoom(min_lon: float, min_lat: float, max_lon: float, max_lat: float,
                map_w: int, map_h: int) -> int:
     """Highest OSM zoom where bbox comfortably fits inside the map dimensions."""
@@ -289,7 +297,8 @@ def _draw_storm_track(od: ImageDraw.ImageDraw, storm: Dict,
 
 
 def _render_map(geom: Dict, severity: str,
-                storm_motion: Optional[Dict] = None) -> Image.Image:
+                storm_motion: Optional[Dict] = None,
+                boundary_features: Optional[List[Dict]] = None) -> Image.Image:
     """Return a MAP_W×MAP_H RGB map image with the alert polygon overlaid."""
     fallback = Image.new('RGB', (MAP_W, MAP_H), (35, 42, 62))
     fd = ImageDraw.Draw(fallback)
@@ -369,6 +378,30 @@ def _render_map(geom: Dict, severity: str,
     if storm_motion:
         _draw_storm_track(od, storm_motion, z, tx_min, ty_min)
 
+    # ── Boundary overlays ─────────────────────────────────────────────────────
+    # Draw county boundaries thicker/brighter; other service boundaries thinner.
+    for feat in (boundary_features or []):
+        bgeom   = feat.get('geometry', {})
+        btype   = feat.get('type', '').lower()
+        bgt     = bgeom.get('type', '')
+        bcoords = bgeom.get('coordinates', [])
+        brings: List[List] = []
+        if bgt == 'Polygon':
+            brings = bcoords
+        elif bgt == 'MultiPolygon':
+            brings = [r for poly in bcoords for r in poly]
+
+        is_county = (btype == 'county')
+        lw = 2 if is_county else 1
+        line_clr = (255, 255, 255) if is_county else (210, 220, 235)
+
+        for ring in brings:
+            bpts = _to_px(ring)
+            if len(bpts) >= 2:
+                closed = bpts + [bpts[0]]
+                od.line(closed, fill=(0, 0, 0),   width=lw + 2)   # shadow
+                od.line(closed, fill=line_clr,     width=lw)        # outline
+
     # Crop to MAP_W × MAP_H centred on the padded bbox
     cx = int((_lon_to_tx((min_lon + max_lon) / 2, z) - tx_min) * TILE_SIZE)
     cy = int((_lat_to_ty((min_lat + max_lat) / 2, z) - ty_min) * TILE_SIZE)
@@ -386,6 +419,52 @@ def _render_map(geom: Dict, severity: str,
     cropped = canvas.crop((x1, y1, x2, y2))
     if cropped.size != (MAP_W, MAP_H):
         cropped = cropped.resize((MAP_W, MAP_H), Image.LANCZOS)
+
+    # ── Post-crop: boundary name labels ───────────────────────────────────────
+    cd       = ImageDraw.Draw(cropped)
+    lbl_font = fonts['small']
+
+    # Gather labels — county boundaries get the name shown; other types get a
+    # shorter label only when no county is present (avoids clutter).
+    has_county_feat = any(f.get('type', '').lower() == 'county'
+                          for f in (boundary_features or []))
+    seen_labels: set = set()
+
+    for feat in (boundary_features or []):
+        name  = (feat.get('name') or '').strip()
+        btype = feat.get('type', '').lower()
+        if not name or name in seen_labels:
+            continue
+        if has_county_feat and btype != 'county':
+            continue   # skip non-county when county data is available
+        cent = _geojson_centroid(feat.get('geometry', {}))
+        if cent is None:
+            continue
+        clon, clat = cent
+        lx = int((_lon_to_tx(clon, z) - tx_min) * TILE_SIZE) - x1
+        ly = int((_lat_to_ty(clat, z) - ty_min) * TILE_SIZE) - y1
+        lw_ = _tw(lbl_font, name)
+        lh_ = _th(lbl_font, name)
+        # Only render if centroid falls inside the viewport with some margin
+        if lw_ // 2 + 4 <= lx <= MAP_W - lw_ // 2 - 4 and lh_ + 4 <= ly <= MAP_H - 4:
+            tx0, ty0 = lx - lw_ // 2, ly - lh_ // 2
+            # Pill background for readability
+            pad = 3
+            cd.rounded_rectangle(
+                (tx0 - pad, ty0 - pad, tx0 + lw_ + pad, ty0 + lh_ + pad),
+                radius=3, fill=(0, 0, 0),
+            )
+            cd.text((tx0, ty0), name, font=lbl_font, fill=(255, 255, 255))
+            seen_labels.add(name)
+
+    # ── OSM attribution (required by tile usage policy) ───────────────────────
+    attr     = '\u00a9 OpenStreetMap contributors'
+    attr_fnt = fonts['tiny']
+    aw, ah   = _tw(attr_fnt, attr), _th(attr_fnt, attr)
+    ax, ay   = MAP_W - aw - 5, MAP_H - ah - 5
+    cd.rectangle((ax - 2, ay - 1, MAP_W - 3, MAP_H - 3), fill=(0, 0, 0))
+    cd.text((ax, ay), attr, font=attr_fnt, fill=(200, 200, 200))
+
     return cropped
 
 
@@ -471,7 +550,7 @@ def generate_alert_image(
     map_img: Optional[Image.Image] = None
     try:
         from app_core.extensions import db
-        from app_core.models import CAPAlert as _CA
+        from app_core.models import CAPAlert as _CA, Boundary as _Bdy, Intersection as _Isect
         from sqlalchemy import func as _func
         alert_id = getattr(alert, 'id', None)
         if alert_id is not None:
@@ -480,9 +559,32 @@ def generate_alert_image(
                 .filter(_CA.id == alert_id)
                 .scalar()
             )
+            # Query intersecting boundary geometries for county outlines + labels
+            boundary_features: List[Dict[str, Any]] = []
+            try:
+                rows = (
+                    db.session.query(
+                        _Bdy.name,
+                        _Bdy.type,
+                        _func.ST_AsGeoJSON(_Bdy.geom).label('geom_json'),
+                    )
+                    .join(_Isect, _Isect.boundary_id == _Bdy.id)
+                    .filter(_Isect.cap_alert_id == alert_id)
+                    .all()
+                )
+                for row in rows:
+                    if row.geom_json:
+                        boundary_features.append({
+                            'name':     row.name or '',
+                            'type':     (row.type or '').lower(),
+                            'geometry': json.loads(row.geom_json),
+                        })
+            except Exception:
+                pass
             if geom_json:
                 map_img = _render_map(json.loads(geom_json), severity,
-                                      storm_motion=storm_motion)
+                                      storm_motion=storm_motion,
+                                      boundary_features=boundary_features)
     except Exception:
         pass
 
