@@ -507,8 +507,6 @@ def generate_alert_image(
 
     iy = _draw_threats(draw, fonts, alr_clr, ix, iy, iw, bot, ipaws_data)
     iy = _draw_coverage(draw, fonts, alr_clr, ix, iy, iw, bot, coverage_data, county_name)
-    iy = _draw_compass_section(draw, fonts, alr_clr, ix, iy, iw, bot, ipaws_data)
-    iy = _draw_vtac(draw, fonts, alr_clr, ix, iy, iw, bot, ipaws_data)
     iy = _draw_areas(draw, fonts, alr_clr, ix, iy, iw, bot, alert)
     iy = _draw_nws_headline(draw, fonts, alr_clr, ix, iy, iw, bot, alert, ipaws_data)
 
