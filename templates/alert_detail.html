@@ -1823,6 +1823,9 @@
                                 <a href="{{ url_for('api.alert_detail_pdf', alert_id=alert.id) }}" target="_blank" class="btn btn-outline-secondary">
                                     <i class="fas fa-file-pdf"></i> Export PDF
                                 </a>
+                                <a href="{{ url_for('api.alert_detail_image', alert_id=alert.id) }}" class="btn btn-outline-primary" title="Download a 1200×630 PNG ready to post on Facebook">
+                                    <i class="fas fa-share-alt"></i> Export Social Image
+                                </a>
                                 {% if alert.vtec_office and alert.vtec_etn is not none and alert.vtec_year is not none %}
                                 <a href="{{ url_for('alerts', vtec_office=alert.vtec_office, vtec_etn=alert.vtec_etn, vtec_year=alert.vtec_year) }}" class="btn btn-outline-success">
                                     <i class="fas fa-link"></i> View Full Event Chain
