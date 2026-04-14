@@ -43,6 +43,7 @@ Usage::
 import io
 import json
 import math
+import re
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests as _http
@@ -612,6 +613,10 @@ def generate_alert_image(
     iy = _draw_compass_section(draw, fonts, alr_clr, ix, iy, iw, bot, ipaws_data)
     iy = _draw_areas(draw, fonts, alr_clr, ix, iy, iw, bot, alert)
     iy = _draw_nws_headline(draw, fonts, alr_clr, ix, iy, iw, bot, alert, ipaws_data)
+    iy = _draw_description(draw, fonts, alr_clr, ix, iy, iw, bot, alert)
+    iy = _draw_instruction(draw, fonts, alr_clr, ix, iy, iw, bot, alert)
+    iy = _draw_vtac(draw, fonts, alr_clr, ix, iy, iw, bot, ipaws_data)
+    iy = _draw_sender(draw, fonts, alr_clr, ix, iy, iw, bot, ipaws_data)
 
     # ── Footer ────────────────────────────────────────────────────────────────
     fy = FB_HEIGHT - FOOTER_H
@@ -1083,6 +1088,148 @@ def _draw_nws_headline(draw: ImageDraw.ImageDraw, fonts: Dict, alr_clr: Tuple,
         draw.rectangle((ix, iy, ix + 3, iy + row_h), fill=alr_clr)
         draw.text((ix + 10, iy + (row_h - _th(font, ltext)) // 2),
                   ltext, font=font, fill=_TEXT)
+        iy += row_h + 1
+
+    return iy + 4
+
+
+def _wrap_text(font: ImageFont.FreeTypeFont, text: str,
+               max_w: int, max_lines: int = 8) -> List[str]:
+    """Word-wrap *text* into lines that fit within *max_w* pixels."""
+    words = text.split()
+    lines: List[str] = []
+    line = ''
+    for word in words:
+        candidate = (line + ' ' + word).strip()
+        if _tw(font, candidate) <= max_w:
+            line = candidate
+        else:
+            if line:
+                lines.append(line)
+                if len(lines) >= max_lines:
+                    # Truncate the last line with ellipsis
+                    lines[-1] = _truncate(font, lines[-1], max_w)
+                    return lines
+            line = word
+    if line:
+        if len(lines) >= max_lines:
+            lines[-1] = _truncate(font, lines[-1] + ' ' + line, max_w)
+        else:
+            lines.append(line)
+    return lines
+
+
+def _draw_description(draw: ImageDraw.ImageDraw, fonts: Dict, alr_clr: Tuple,
+                      ix: int, iy: int, iw: int, bot: int,
+                      alert: Any) -> int:
+    """Render the alert description text (word-wrapped, space-limited)."""
+    desc = (getattr(alert, 'description', '') or '').strip()
+    if not desc or iy + 30 > bot:
+        return iy
+
+    # Clean up NWS description formatting: collapse multiple whitespace,
+    # strip leading asterisks/bullets, normalise newlines to spaces.
+    desc = re.sub(r'\s*\n\s*', ' ', desc)
+    desc = re.sub(r'\s{2,}', ' ', desc)
+    desc = re.sub(r'^\*\s*', '', desc)
+    desc = desc.strip()
+
+    if not desc:
+        return iy
+
+    iy = _section_header(draw, fonts, alr_clr, ix, iy, iw, 'DESCRIPTION')
+
+    font = fonts['small']
+    max_w = iw - 14
+    row_h = 18
+    # Limit lines to what fits in remaining space
+    avail_lines = max(1, (bot - iy) // (row_h + 1))
+    lines = _wrap_text(font, desc, max_w, max_lines=min(avail_lines, 6))
+
+    for ltext in lines:
+        if iy + row_h > bot:
+            break
+        _card_row(draw, ix, iy, iw, row_h)
+        draw.text((ix + 7, iy + (row_h - _th(font, ltext)) // 2),
+                  ltext, font=font, fill=_TEXT)
+        iy += row_h + 1
+
+    return iy + 4
+
+
+def _draw_instruction(draw: ImageDraw.ImageDraw, fonts: Dict, alr_clr: Tuple,
+                      ix: int, iy: int, iw: int, bot: int,
+                      alert: Any) -> int:
+    """Render safety/action instructions with a caution-coloured accent."""
+    instr = (getattr(alert, 'instruction', '') or '').strip()
+    if not instr or iy + 30 > bot:
+        return iy
+
+    instr = re.sub(r'\s*\n\s*', ' ', instr)
+    instr = re.sub(r'\s{2,}', ' ', instr)
+    instr = instr.strip()
+
+    if not instr:
+        return iy
+
+    iy = _section_header(draw, fonts, alr_clr, ix, iy, iw, 'INSTRUCTIONS')
+
+    font = fonts['small']
+    max_w = iw - 18  # leave room for accent bar
+    row_h = 18
+    avail_lines = max(1, (bot - iy) // (row_h + 1))
+    lines = _wrap_text(font, instr, max_w, max_lines=min(avail_lines, 4))
+
+    _INSTR_ACCENT = (255, 193, 7)  # warning-yellow accent bar
+
+    for ltext in lines:
+        if iy + row_h > bot:
+            break
+        _card_row(draw, ix, iy, iw, row_h)
+        # Yellow accent bar on the left edge
+        draw.rectangle((ix, iy, ix + 3, iy + row_h), fill=_INSTR_ACCENT)
+        draw.text((ix + 10, iy + (row_h - _th(font, ltext)) // 2),
+                  ltext, font=font, fill=_TEXT)
+        iy += row_h + 1
+
+    return iy + 4
+
+
+def _draw_sender(draw: ImageDraw.ImageDraw, fonts: Dict, alr_clr: Tuple,
+                 ix: int, iy: int, iw: int, bot: int,
+                 ipaws_data: Optional[Dict]) -> int:
+    """Render the issuing office / sender information."""
+    if not ipaws_data:
+        return iy
+
+    sender_name = ipaws_data.get('sender_name', '')
+    response_type = ipaws_data.get('response_type', '')
+    category = ipaws_data.get('category', '')
+
+    # Build info lines from available data
+    info_lines: List[str] = []
+    if sender_name:
+        info_lines.append(sender_name)
+    if response_type:
+        info_lines.append(f'Response: {response_type}')
+    if category:
+        info_lines.append(f'Category: {category}')
+
+    if not info_lines or iy + 30 > bot:
+        return iy
+
+    iy = _section_header(draw, fonts, alr_clr, ix, iy, iw, 'ISSUING OFFICE')
+
+    font = fonts['small']
+    row_h = 20
+
+    for i, line in enumerate(info_lines):
+        if iy + row_h > bot:
+            break
+        _card_row(draw, ix, iy, iw, row_h)
+        f = fonts['bold'] if i == 0 else font
+        draw.text((ix + 7, iy + (row_h - _th(f, line)) // 2),
+                  _truncate(f, line, iw - 14), font=f, fill=_TEXT if i == 0 else _TEXT_SEC)
         iy += row_h + 1
 
     return iy + 4
