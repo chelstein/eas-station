@@ -258,6 +258,10 @@ class DemodulatorStatus:
     stereo_pilot_locked: bool = False  # 19 kHz stereo pilot detected
     stereo_pilot_strength: float = 0.0  # Pilot signal strength (0.0 to 1.0)
     is_stereo: bool = False  # Stereo decoding active
+    # Mean magnitude of the IQ samples for this chunk (linear, 0.0-1.0 range
+    # for normalized float samples).  The UI converts this to dBFS for the
+    # RF RSSI meter.
+    signal_strength: float = 0.0
 
 
 class RBDSWorker:
@@ -271,6 +275,15 @@ class RBDSWorker:
     # RBDS processing constants
     RBDS_MIN_SAMPLE_RATE = 120000  # Minimum sample rate for 57 kHz subcarrier extraction (Hz)
     RBDS_INTERMEDIATE_RATE = 25000  # Target rate after decimation before resampling (Hz)
+
+    # Sliding-window decode thresholds (samples at the 19 kHz RBDS rate).
+    # Before the bit-level sync state machine locks we need a generous window so
+    # the M&M and Costas loops can converge (~3 seconds).  Once locked their
+    # state is carried forward between batches, so a 1-second slice is enough
+    # to keep them locked and PS/radiotext updates arrive roughly once per
+    # second - comparable to a car radio's head unit.
+    RBDS_UNSYNCED_WINDOW = 57000   # ~3 seconds @ 19 kHz - initial acquisition
+    RBDS_SYNCED_WINDOW = 19000     # ~1 second  @ 19 kHz - fast streaming updates
 
     def __init__(self, sample_rate: int, intermediate_rate: int):
         """Initialize RBDS worker thread.
@@ -639,10 +652,14 @@ class RBDSWorker:
 
         self._rbds_sample_buffer = np.concatenate([self._rbds_sample_buffer, x])
 
-        # This is SDR, not streaming! RBDS updates slowly (station name, radiotext).
-        # Process large batches like python-radio does with recordings.
-        # 10 seconds @ 19kHz = 190000 samples = ~11875 symbols
-        if len(self._rbds_sample_buffer) < 190000:
+        # Sliding-window decode: use a generous window until the block-level
+        # sync state machine locks, then switch to a short 1-second window so
+        # PS/radiotext changes surface quickly instead of waiting 10 s.  M&M
+        # and Costas state is preserved across batches (see comment below),
+        # so once locked the shorter window keeps the loops locked too.
+        locked = getattr(self, '_rbds_synced', False)
+        window = self.RBDS_SYNCED_WINDOW if locked else self.RBDS_UNSYNCED_WINDOW
+        if len(self._rbds_sample_buffer) < window:
             return self._decode_rbds_groups()
 
         # Use buffered samples and reset for next accumulation
@@ -1476,6 +1493,11 @@ class FMDemodulator:
         # FAST PATH: Using JIT-compiled functions when available
         iq_array = np.asarray(iq_samples, dtype=np.complex64)
 
+        # Mean IQ magnitude - raw RF signal strength for the RSSI meter.  Done
+        # on the input array before phase-continuity prepending so the value
+        # reflects the samples that just arrived from the SDR.
+        rf_signal_strength = float(np.mean(np.abs(iq_array))) if iq_array.size else 0.0
+
         # Phase continuity - prepend last sample from previous block
         if self._prev_sample is not None:
             iq_array = np.concatenate(([self._prev_sample], iq_array))
@@ -1619,7 +1641,8 @@ class FMDemodulator:
             rbds_data=rbds_data,
             stereo_pilot_locked=stereo_pilot_locked,
             stereo_pilot_strength=stereo_pilot_strength,
-            is_stereo=self._stereo_enabled and stereo_pilot_locked
+            is_stereo=self._stereo_enabled and stereo_pilot_locked,
+            signal_strength=rf_signal_strength,
         )
 
         return audio.astype(np.float32), status
