@@ -446,6 +446,11 @@ class SDRSourceAdapter(AudioSourceAdapter):
                         metadata['stereo_pilot_strength'] = demod_status.stereo_pilot_strength
                         metadata['is_stereo'] = demod_status.is_stereo
 
+                        # RF RSSI (mean IQ magnitude).  Linear value; the UI
+                        # converts to dBFS for the signal meter.
+                        metadata['rf_signal_strength'] = float(demod_status.signal_strength)
+                        metadata['rf_signal_strength_updated'] = time.time()
+
                         # RBDS data (if available)
                         rbds_data = demod_status.rbds_data
                         if rbds_data:

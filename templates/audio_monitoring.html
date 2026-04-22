@@ -370,6 +370,50 @@
 .vu-labels span {
     font-variant-numeric: tabular-nums;
 }
+
+/* RF RSSI meter - shares VU meter styling but with its own gradient */
+.rssi-meter {
+    background: var(--bg-primary);
+    border-radius: 10px;
+    padding: 0.55rem 0.75rem 0.7rem;
+    margin-top: 0.5rem;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04);
+}
+
+.rssi-track {
+    position: relative;
+    height: 10px;
+    border-radius: 5px;
+    background: linear-gradient(90deg, var(--danger-color) 0%, var(--warning-color) 40%, var(--success-color) 70%);
+    overflow: hidden;
+    opacity: 0.35;
+}
+
+.rssi-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 0%;
+    background: rgba(255, 255, 255, 0.0);
+    border-right: 2px solid rgba(255, 255, 255, 0.85);
+    box-shadow: 0 0 6px rgba(255,255,255,0.45);
+    transition: width 0.2s ease-out;
+}
+
+.rssi-labels {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    margin-bottom: 0.35rem;
+}
+
+.rssi-labels .rssi-value {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+}
 </style>
 
 <script src="https://cdn.socket.io/4.5.4/socket.io.min.js" crossorigin="anonymous"></script>
@@ -500,7 +544,13 @@ function updateMetricsOnly() {
             if (rmsLabel) {
                 rmsLabel.textContent = `RMS: ${formatDbLabel(source.metrics.rms_level_db)}`;
             }
-            
+
+            // RF RSSI meter live update (polling-fallback path).
+            const rfSignal = source.metrics?.metadata?.rf_signal_strength;
+            if (typeof rfSignal === 'number' && Number.isFinite(rfSignal)) {
+                updateRssiMeter(source.name, rfSignal);
+            }
+
             // Check if player needs to be updated due to stream state changes
             updateSourcePlayer(source);
         }
@@ -580,6 +630,19 @@ function renderAudioSources(fullRender = true) {
                             <div class="vu-fill rms" id="rms-meter-${safeId}" style="width: ${calculateFillWidth(rmsValue)}%"></div>
                         </div>
                     </div>
+
+                    ${hasRfSignalStrength(source) ? `
+                        <!-- RF RSSI meter (FM/SDR sources only) -->
+                        <div class="rssi-meter" aria-live="polite" data-rssi-container-for="${safeId}">
+                            <div class="rssi-labels">
+                                <span><i class="fas fa-signal"></i> RF Signal</span>
+                                <span class="rssi-value" id="rssi-label-${safeId}">${formatRssiLabel(getRfSignalStrength(source))}</span>
+                            </div>
+                            <div class="rssi-track" role="presentation">
+                                <div class="rssi-fill" id="rssi-meter-${safeId}" style="width: ${calculateRssiFillWidth(getRfSignalStrength(source))}%"></div>
+                            </div>
+                        </div>
+                    ` : ''}
 
                     <!-- Audio Player -->
                     <div class="audio-player-container" id="player-container-${source.name}">
@@ -984,15 +1047,75 @@ function calculateFillWidth(value) {
     const MIN_DB = -60;
     const MAX_DB = 0;
     const clamped = Math.max(MIN_DB, Math.min(MAX_DB, value));
-    
+
     // Convert to 0-1 range
     const normalized = (clamped - MIN_DB) / (MAX_DB - MIN_DB);
-    
+
     // Apply slight curve for better visual response at lower levels
     // This makes the meter more responsive in the typical operating range (-40 to -10 dBFS)
     const curved = Math.pow(normalized, 0.8);
-    
+
     return curved * 100;
+}
+
+// RF RSSI meter helpers.  `value` is the mean IQ magnitude (linear, 0-1
+// for normalized float samples) published by the demodulator; we convert
+// to dBFS so the meter matches the admin radio diagnostics panel.
+const RSSI_MIN_DB = -100;
+const RSSI_MAX_DB = -20;
+
+function getRfSignalStrength(source) {
+    const raw = source?.metrics?.metadata?.rf_signal_strength;
+    const num = Number(raw);
+    return Number.isFinite(num) ? num : null;
+}
+
+function hasRfSignalStrength(source) {
+    return getRfSignalStrength(source) !== null;
+}
+
+function rssiToDbfs(value) {
+    if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+        return null;
+    }
+    return 20 * Math.log10(value);
+}
+
+function formatRssiLabel(value) {
+    const db = rssiToDbfs(value);
+    if (db === null) {
+        return '-- dBFS';
+    }
+    let rating = 'No signal';
+    if (db > -50) rating = 'Excellent';
+    else if (db > -70) rating = 'Good';
+    else if (db > -85) rating = 'Fair';
+    else if (db > -100) rating = 'Poor';
+    return `${db.toFixed(1)} dBFS · ${rating}`;
+}
+
+function calculateRssiFillWidth(value) {
+    const db = rssiToDbfs(value);
+    if (db === null) {
+        return 0;
+    }
+    const clamped = Math.max(RSSI_MIN_DB, Math.min(RSSI_MAX_DB, db));
+    const normalized = (clamped - RSSI_MIN_DB) / (RSSI_MAX_DB - RSSI_MIN_DB);
+    return normalized * 100;
+}
+
+function updateRssiMeter(sourceId, value) {
+    if (!sourceId) return;
+    const safeId = sanitizeId(sourceId);
+    const bar = document.getElementById(`rssi-meter-${safeId}`);
+    const label = document.getElementById(`rssi-label-${safeId}`);
+    if (!bar && !label) return;
+    if (bar) {
+        bar.style.width = `${calculateRssiFillWidth(value)}%`;
+    }
+    if (label) {
+        label.textContent = formatRssiLabel(value);
+    }
 }
 
 function initializeAudioPlayers(playingStates = {}, currentTimes = {}) {
@@ -1694,6 +1817,13 @@ function updateLevelMetersFromSnapshot(snapshot) {
         }
         if (rmsLabel) {
             rmsLabel.textContent = `RMS: ${formatDbLabel(metric.rms_level_db)}`;
+        }
+
+        // RF RSSI meter - updates every broadcast when the demodulator reports
+        // mean IQ magnitude (FM/SDR sources only).
+        const rfSignal = metric?.metrics?.metadata?.rf_signal_strength;
+        if (typeof rfSignal === 'number' && Number.isFinite(rfSignal)) {
+            updateRssiMeter(metric.source_id, rfSignal);
         }
         updatedCount++;
     });
