@@ -295,7 +295,7 @@
         <div class="hero-section">
             <h1>📊 EAS Station Repository Statistics</h1>
             <p class="timestamp">
-                <i class="far fa-clock"></i> Last Updated: 2026-04-22 17:03:44 UTC
+                <i class="far fa-clock"></i> Last Updated: 2026-04-22 18:02:40 UTC
             </p>
         </div>
         
@@ -313,17 +313,17 @@
             </div>
             <div class="quick-stat-item">
                 <div class="icon">📝</div>
-                <div class="value">654,124</div>
+                <div class="value">654,410</div>
                 <div class="label">Total Lines</div>
             </div>
             <div class="quick-stat-item">
                 <div class="icon">💻</div>
-                <div class="value">507,040</div>
+                <div class="value">507,326</div>
                 <div class="label">Code Lines</div>
             </div>
             <div class="quick-stat-item">
                 <div class="icon">💬</div>
-                <div class="value">93,207</div>
+                <div class="value">93,206</div>
                 <div class="label">Comments</div>
             </div>
             <div class="quick-stat-item">
@@ -389,7 +389,7 @@
                             <td class="text-end">100%</td>
                             <td>
                                 <div style="background: #e9ecef; border-radius: 4px; height: 8px; overflow: hidden;">
-                                    <div class="progress-bar-custom" style="width: 41.1%;"></div>
+                                    <div class="progress-bar-custom" style="width: 41.0%;"></div>
                                 </div>
                             </td>
                         </tr>
@@ -419,9 +419,9 @@
                         </tr>
                         <tr>
                             <td><strong><svg viewBox="0 0 24 24" width="20" height="20" fill="#E34F26" style="vertical-align: middle; margin-right: 6px;"><path d="M1.5 0h21l-1.91 21.563L11.977 24l-8.564-2.438L1.5 0zm7.031 9.75l-.232-2.718 10.059.003.23-2.622L5.412 4.41l.698 8.01h9.126l-.326 3.426-2.91.804-2.955-.81-.188-2.11H6.248l.33 4.171L12 19.351l5.379-1.443.744-8.157H8.531z"/></svg>HTML</strong></td>
-                            <td class="text-end">68,527</td>
-                            <td class="text-end">61,634</td>
-                            <td class="text-end">740</td>
+                            <td class="text-end">68,813</td>
+                            <td class="text-end">61,920</td>
+                            <td class="text-end">739</td>
                             <td class="text-end">90%</td>
                             <td>
                                 <div style="background: #e9ecef; border-radius: 4px; height: 8px; overflow: hidden;">
@@ -574,7 +574,7 @@
             data: {
                 labels: ['💻 Code', '💬 Comments', '⬜ Whitespace'],
                 datasets: [{
-                    data: [507040, 93207, 53877],
+                    data: [507326, 93206, 53878],
                     backgroundColor: [
                         'rgba(102, 126, 234, 0.8)',
                         'rgba(118, 75, 162, 0.8)',
@@ -607,7 +607,7 @@
                             label: function(context) {
                                 let label = context.label || '';
                                 let value = context.parsed || 0;
-                                let total = 654124;
+                                let total = 654410;
                                 let percentage = ((value / total) * 100).toFixed(1);
                                 return label + ': ' + value.toLocaleString() + ' lines (' + percentage + '%)';
                             }
@@ -684,7 +684,7 @@
                 labels: ["JSON", "Python", "YAML", "HTML", "Markdown", "CSS", "JavaScript", "SVG"],
                 datasets: [{
                     label: 'Lines of Code',
-                    data: [208171, 57981, 97742, 61634, 31476, 13270, 17962, 8314],
+                    data: [208171, 57981, 97742, 61920, 31476, 13270, 17962, 8314],
                     backgroundColor: 'rgba(118, 75, 162, 0.8)',
                     borderColor: 'rgba(118, 75, 162, 1)',
                     borderWidth: 2,
