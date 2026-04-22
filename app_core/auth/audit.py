@@ -308,7 +308,7 @@ class AuditLogger:
         Returns:
             Number of logs deleted
         """
-        cutoff = datetime.utcnow() - timedelta(days=days)
+        cutoff = utc_now() - timedelta(days=days)
         result = db.session.query(AuditLog).filter(AuditLog.timestamp < cutoff).delete()
         db.session.commit()
         current_app.logger.info(f"Cleaned up {result} audit logs older than {days} days")

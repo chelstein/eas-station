@@ -18,6 +18,8 @@ See NOTICE file for complete terms.
 Repository: https://github.com/KR8MER/eas-station
 """
 
+from __future__ import annotations
+
 """
 Download NWS GIS data files for EAS Station.
 
@@ -40,8 +42,6 @@ Usage::
     python tools/download_nws_gis_data.py --partial # only partial counties
     python tools/download_nws_gis_data.py --dry-run # print URLs, do not download
 """
-
-from __future__ import annotations
 
 import argparse
 import io

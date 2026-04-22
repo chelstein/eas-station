@@ -683,8 +683,8 @@ def _emit_analytics_update(app: 'Flask', socketio: 'SocketIO') -> None:
         total_messages = db.session.query(func.count(EASMessage.id)).scalar() or 0
 
         # Get recent activity counts (last 24 hours)
-        from datetime import datetime, timedelta
-        yesterday = datetime.utcnow() - timedelta(days=1)
+        from datetime import datetime, timedelta, timezone
+        yesterday = datetime.now(timezone.utc) - timedelta(days=1)
         recent_alerts = db.session.query(func.count(CAPAlert.id)).filter(
             CAPAlert.received_at >= yesterday
         ).scalar() or 0
