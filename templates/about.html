@@ -1,457 +1,743 @@
 {% extends 'base.html' %}
 {% block title %}About | EAS Station{% endblock %}
+{% block extra_css %}
+<style>
+.about-page { position: relative; }
+
+.about-hero {
+    padding: 3rem 2.5rem 2.75rem;
+    margin-bottom: 1.75rem;
+    border-radius: var(--radius-2xl);
+    overflow: hidden;
+    position: relative;
+    background: linear-gradient(135deg,
+        var(--vibrant-indigo) 0%,
+        var(--vibrant-purple) 45%,
+        color-mix(in srgb, var(--vibrant-pink) 85%, var(--vibrant-orange)) 100%);
+    color: #fff;
+    box-shadow: var(--shadow-xl),
+                0 0 0 1px rgba(255, 255, 255, 0.12) inset,
+                0 0 48px color-mix(in srgb, var(--vibrant-purple) 35%, transparent);
+}
+.about-hero::before {
+    content: "";
+    position: absolute; inset: -40% -20% auto auto;
+    width: 70%; height: 180%;
+    background: radial-gradient(ellipse at center,
+        rgba(255,255,255,0.22), rgba(255,255,255,0.05) 50%, transparent 75%);
+    animation: headerGlow 9s ease-in-out infinite;
+    pointer-events: none;
+}
+.about-hero::after {
+    content: "";
+    position: absolute; left: 0; right: 0; bottom: 0; height: 3px;
+    background: linear-gradient(90deg,
+        var(--vibrant-pink), var(--vibrant-orange),
+        var(--vibrant-yellow), var(--vibrant-green),
+        var(--vibrant-blue), var(--vibrant-pink));
+    background-size: 300% 100%;
+    animation: gradientShift 8s linear infinite;
+}
+.about-hero-inner {
+    position: relative; z-index: 2;
+    display: flex; flex-direction: column; align-items: center; text-align: center;
+    gap: 1rem;
+}
+.about-hero-logo { max-width: 460px; width: 100%; }
+.about-hero-title {
+    font-size: clamp(1.9rem, 3.2vw, 2.6rem);
+    font-weight: 800; letter-spacing: -0.02em;
+    margin: 0;
+    text-shadow: 0 2px 12px rgba(0,0,0,0.25);
+}
+.about-hero-lead {
+    font-size: 1.05rem; font-weight: 500;
+    color: rgba(255,255,255,0.92);
+    max-width: 720px; margin: 0 auto;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.about-chip-row { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; margin-top: 0.5rem; }
+.about-chip {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    padding: 0.35rem 0.85rem;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.14);
+    border: 1px solid rgba(255,255,255,0.28);
+    backdrop-filter: blur(8px);
+    font-size: 0.78rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+    color: #fff;
+}
+.about-chip i { opacity: 0.9; }
+
+/* Section cards */
+.about-card {
+    background: var(--surface-color, #fff);
+    border-radius: var(--radius-2xl);
+    box-shadow: var(--shadow-md);
+    padding: 1.75rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid color-mix(in srgb, var(--border-color, #e5e7eb) 70%, transparent);
+    position: relative;
+}
+.about-section-head {
+    display: flex; align-items: center; gap: 0.75rem;
+    margin-bottom: 1.25rem;
+}
+.about-section-icon {
+    width: 42px; height: 42px; border-radius: 12px;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 1.05rem;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+    flex-shrink: 0;
+}
+.about-section-icon.ico-primary { background: linear-gradient(135deg, var(--vibrant-blue), var(--vibrant-indigo)); }
+.about-section-icon.ico-success { background: linear-gradient(135deg, var(--vibrant-green), var(--vibrant-teal)); }
+.about-section-icon.ico-info    { background: linear-gradient(135deg, var(--vibrant-teal), var(--vibrant-blue)); }
+.about-section-icon.ico-warning { background: linear-gradient(135deg, var(--vibrant-orange), var(--vibrant-yellow)); color: #1a1a1a; }
+.about-section-icon.ico-danger  { background: linear-gradient(135deg, var(--vibrant-red), var(--vibrant-pink)); }
+.about-section-icon.ico-purple  { background: linear-gradient(135deg, var(--vibrant-purple), var(--vibrant-indigo)); }
+.about-section-title {
+    font-size: 1.2rem; font-weight: 700; letter-spacing: -0.01em; margin: 0;
+    color: var(--text-color);
+}
+.about-section-sub {
+    font-size: 0.85rem; color: var(--text-secondary); margin: 0;
+}
+
+/* Compliance card */
+.compliance-grid {
+    display: grid; gap: 0.85rem;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+.compliance-item {
+    display: flex; gap: 0.85rem; padding: 1rem 1.1rem;
+    border-radius: var(--radius-lg, 14px);
+    border: 1px solid transparent;
+    background: color-mix(in srgb, var(--border-color, #e5e7eb) 25%, transparent);
+}
+.compliance-item.lvl-warn   { background: color-mix(in srgb, var(--vibrant-orange) 12%, transparent); border-color: color-mix(in srgb, var(--vibrant-orange) 35%, transparent); }
+.compliance-item.lvl-danger { background: color-mix(in srgb, var(--vibrant-red)    12%, transparent); border-color: color-mix(in srgb, var(--vibrant-red)    35%, transparent); }
+.compliance-item.lvl-legal  { background: color-mix(in srgb, var(--vibrant-indigo) 10%, transparent); border-color: color-mix(in srgb, var(--vibrant-indigo) 30%, transparent); }
+.compliance-item.lvl-ethics { background: color-mix(in srgb, var(--vibrant-purple) 10%, transparent); border-color: color-mix(in srgb, var(--vibrant-purple) 30%, transparent); }
+.compliance-ico {
+    flex-shrink: 0; width: 36px; height: 36px; border-radius: 10px;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 0.95rem;
+}
+.compliance-item.lvl-warn   .compliance-ico { background: var(--vibrant-orange); color: #1a1a1a; }
+.compliance-item.lvl-danger .compliance-ico { background: var(--vibrant-red); }
+.compliance-item.lvl-legal  .compliance-ico { background: var(--vibrant-indigo); }
+.compliance-item.lvl-ethics .compliance-ico { background: var(--vibrant-purple); }
+.compliance-title { font-weight: 700; font-size: 0.92rem; margin: 0 0 0.2rem; color: var(--text-color); }
+.compliance-body  { font-size: 0.85rem; line-height: 1.5; color: var(--text-color); margin: 0; }
+.compliance-body a { color: inherit; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+/* Feature / service cards (used throughout) */
+.feature-card {
+    background: var(--surface-color, #fff);
+    border: 1px solid color-mix(in srgb, var(--border-color, #e5e7eb) 80%, transparent);
+    border-radius: var(--radius-lg, 14px);
+    padding: 1.25rem;
+    transition: transform .25s var(--ease-spring, ease),
+                box-shadow .25s var(--ease-spring, ease),
+                border-color .25s ease;
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+}
+.feature-card:hover {
+    transform: translateY(-4px);
+    border-color: color-mix(in srgb, var(--vibrant-blue) 35%, transparent);
+    box-shadow: 0 12px 28px rgba(0,0,0,0.08),
+                0 0 0 1px color-mix(in srgb, var(--vibrant-blue) 25%, transparent) inset;
+}
+.feature-card-icon {
+    width: 44px; height: 44px; border-radius: 12px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 1.05rem; color: #fff;
+    margin-bottom: 0.8rem;
+    background: linear-gradient(135deg, var(--vibrant-blue), var(--vibrant-indigo));
+    box-shadow: 0 6px 14px color-mix(in srgb, var(--vibrant-blue) 30%, transparent);
+}
+.feature-card-title { font-size: 0.98rem; font-weight: 700; margin: 0 0 0.35rem; color: var(--text-color); letter-spacing: -0.005em; }
+.feature-card-text  { font-size: 0.85rem; color: var(--text-secondary); margin: 0; line-height: 1.5; }
+
+/* Accent palette for service/feature icons */
+.fc-blue   .feature-card-icon { background: linear-gradient(135deg, var(--vibrant-blue), var(--vibrant-indigo)); box-shadow: 0 6px 14px color-mix(in srgb, var(--vibrant-blue) 30%, transparent); }
+.fc-green  .feature-card-icon { background: linear-gradient(135deg, var(--vibrant-green), var(--vibrant-teal));  box-shadow: 0 6px 14px color-mix(in srgb, var(--vibrant-green) 30%, transparent); }
+.fc-purple .feature-card-icon { background: linear-gradient(135deg, var(--vibrant-purple), var(--vibrant-indigo)); box-shadow: 0 6px 14px color-mix(in srgb, var(--vibrant-purple) 30%, transparent); }
+.fc-orange .feature-card-icon { background: linear-gradient(135deg, var(--vibrant-orange), var(--vibrant-yellow)); color: #1a1a1a; box-shadow: 0 6px 14px color-mix(in srgb, var(--vibrant-orange) 30%, transparent); }
+.fc-pink   .feature-card-icon { background: linear-gradient(135deg, var(--vibrant-pink), var(--vibrant-red));    box-shadow: 0 6px 14px color-mix(in srgb, var(--vibrant-pink) 30%, transparent); }
+.fc-teal   .feature-card-icon { background: linear-gradient(135deg, var(--vibrant-teal), var(--vibrant-mint));   box-shadow: 0 6px 14px color-mix(in srgb, var(--vibrant-teal) 30%, transparent); }
+
+/* Capability pipeline */
+.pipeline {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.85rem;
+    align-items: stretch;
+}
+@media (max-width: 768px) { .pipeline { grid-template-columns: repeat(2, 1fr); } }
+.pipeline-step { position: relative; }
+.pipeline-step + .pipeline-step::before {
+    content: "\f054"; font-family: "Font Awesome 6 Free"; font-weight: 900;
+    position: absolute; left: -0.75rem; top: 50%; transform: translateY(-50%);
+    color: color-mix(in srgb, var(--text-secondary) 55%, transparent);
+    font-size: 0.9rem;
+}
+@media (max-width: 768px) { .pipeline-step + .pipeline-step::before { display: none; } }
+
+/* Tech stack */
+.stack-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.6rem;
+}
+.stack-item {
+    display: flex; align-items: center; gap: 0.75rem;
+    padding: 0.75rem 0.9rem;
+    border-radius: 12px;
+    border: 1px solid color-mix(in srgb, var(--border-color, #e5e7eb) 70%, transparent);
+    background: color-mix(in srgb, var(--surface-color, #fff) 88%, transparent);
+    transition: transform .2s ease, border-color .2s ease;
+}
+.stack-item:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--vibrant-blue) 35%, transparent); }
+.stack-item-ico {
+    width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 0.85rem;
+    background: linear-gradient(135deg, var(--vibrant-blue), var(--vibrant-indigo));
+}
+.stack-item-name { font-weight: 700; font-size: 0.88rem; color: var(--text-color); }
+.stack-item-desc { font-size: 0.78rem; color: var(--text-secondary); }
+
+/* Maintainer */
+.maintainer-identity {
+    display: grid; grid-template-columns: auto 1fr auto; gap: 1.25rem;
+    align-items: center;
+    padding: 1.25rem;
+    border-radius: var(--radius-lg, 14px);
+    background: linear-gradient(135deg,
+        color-mix(in srgb, var(--vibrant-blue) 8%, transparent),
+        color-mix(in srgb, var(--vibrant-purple) 8%, transparent));
+    border: 1px solid color-mix(in srgb, var(--vibrant-indigo) 25%, transparent);
+    margin-bottom: 1rem;
+}
+@media (max-width: 640px) { .maintainer-identity { grid-template-columns: 1fr; text-align: center; } }
+.maintainer-avatar {
+    width: 84px; height: 84px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, var(--vibrant-blue), var(--vibrant-purple), var(--vibrant-pink));
+    padding: 3px;
+    box-shadow: 0 10px 26px color-mix(in srgb, var(--vibrant-purple) 35%, transparent);
+}
+.maintainer-avatar-inner {
+    width: 100%; height: 100%; border-radius: 50%;
+    background: var(--surface-color, #fff);
+    display: inline-flex; align-items: center; justify-content: center;
+    overflow: hidden;
+}
+.maintainer-avatar-inner img { width: 72%; height: 72%; object-fit: contain; }
+.maintainer-name { font-size: 1.25rem; font-weight: 800; margin: 0; letter-spacing: -0.01em; }
+.maintainer-callsign { font-weight: 500; color: var(--text-secondary); margin-left: 0.4rem; }
+.maintainer-role { font-size: 0.85rem; color: var(--text-secondary); margin: 0.15rem 0 0.5rem; }
+.maintainer-blurb { font-size: 0.9rem; margin: 0; color: var(--text-color); }
+.maintainer-aside { text-align: center; font-size: 0.75rem; color: var(--text-secondary); }
+.maintainer-aside img { max-width: 72px; display: block; margin: 0 auto 0.3rem; }
+
+.role-chip {
+    display: flex; gap: 0.75rem; align-items: flex-start;
+    padding: 0.9rem 1rem;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--border-color, #e5e7eb) 18%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-color, #e5e7eb) 70%, transparent);
+    height: 100%;
+}
+.role-chip-ico {
+    width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 0.9rem;
+}
+.role-chip-ico.ro-radio   { background: linear-gradient(135deg, var(--vibrant-blue), var(--vibrant-teal)); }
+.role-chip-ico.ro-shield  { background: linear-gradient(135deg, var(--vibrant-red), var(--vibrant-pink)); }
+.role-chip-ico.ro-bolt    { background: linear-gradient(135deg, var(--vibrant-orange), var(--vibrant-yellow)); color: #1a1a1a; }
+.role-chip-ico.ro-flask   { background: linear-gradient(135deg, var(--vibrant-green), var(--vibrant-teal)); }
+.role-chip h6 { margin: 0 0 0.2rem; font-size: 0.9rem; font-weight: 700; color: var(--text-color); }
+.role-chip p  { margin: 0; font-size: 0.8rem; color: var(--text-secondary); line-height: 1.45; }
+
+/* Acknowledgments */
+.ack-group h6 {
+    font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--text-secondary); margin: 0 0 0.6rem;
+}
+.ack-item {
+    padding: 0.65rem 0.85rem; border-radius: 10px;
+    border: 1px solid color-mix(in srgb, var(--border-color, #e5e7eb) 65%, transparent);
+    margin-bottom: 0.4rem;
+    background: color-mix(in srgb, var(--surface-color, #fff) 92%, transparent);
+}
+.ack-item strong { font-size: 0.88rem; }
+.ack-item .muted { display: block; font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.15rem; line-height: 1.4; }
+
+/* AMPR notice */
+.ampr-card {
+    background: linear-gradient(135deg,
+        color-mix(in srgb, var(--vibrant-orange) 10%, var(--surface-color, #fff)),
+        color-mix(in srgb, var(--vibrant-yellow) 10%, var(--surface-color, #fff)));
+    border-left: 4px solid var(--vibrant-orange);
+}
+.ampr-heading {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    font-weight: 700; color: var(--text-color); margin-bottom: 0.5rem;
+}
+
+/* Resource links */
+.resource-link {
+    display: flex; align-items: center; gap: 0.6rem;
+    padding: 0.55rem 0.8rem;
+    border-radius: 10px;
+    border: 1px solid color-mix(in srgb, var(--border-color, #e5e7eb) 65%, transparent);
+    color: var(--text-color); text-decoration: none;
+    font-size: 0.9rem; font-weight: 500;
+    transition: transform .2s ease, border-color .2s ease, background .2s ease;
+    margin-bottom: 0.4rem;
+    background: color-mix(in srgb, var(--surface-color, #fff) 90%, transparent);
+}
+.resource-link:hover {
+    transform: translateX(4px);
+    border-color: color-mix(in srgb, var(--vibrant-blue) 40%, transparent);
+    background: color-mix(in srgb, var(--vibrant-blue) 6%, var(--surface-color, #fff));
+    color: var(--text-color);
+}
+.resource-link i { color: var(--vibrant-blue); width: 18px; text-align: center; }
+</style>
+{% endblock %}
 {% block content %}
-<div class="container py-4">
+<div class="about-page container py-4">
     <div class="row justify-content-center">
         <div class="col-12 col-lg-10 col-xl-9">
-            <!-- Header -->
-            <div class="card shadow-sm mb-4 border-0">
-                <div class="card-body p-4 p-md-5">
-                    <div class="text-center mb-4">
-                        {% with logo_classes='img-fluid mb-3 mx-auto', logo_style='max-width: 500px;' %}
-                            {% include 'partials/logo_wordmark.html' %}
-                        {% endwith %}
-                        <h1 class="display-5 fw-bold mb-3 text-gradient">About EAS Station</h1>
-                        <p class="lead text-muted">Software-defined drop-in replacement for commercial EAS encoder/decoders built on Raspberry Pi-class hardware</p>
+            <!-- Hero -->
+            <section class="about-hero">
+                <div class="about-hero-inner">
+                    {% with logo_classes='about-hero-logo', logo_style='' %}
+                        {% include 'partials/logo_wordmark.html' %}
+                    {% endwith %}
+                    <h1 class="about-hero-title">Software-defined emergency alerting, engineered like a broadcast appliance.</h1>
+                    <p class="about-hero-lead">EAS Station is an open-source, Raspberry Pi-class replacement for commercial EAS encoder/decoders — integrating CAP ingest, SAME audio synthesis, SDR verification, and multi-channel distribution into one disciplined stack.</p>
+                    <div class="about-chip-row">
+                        <span class="about-chip"><i class="fas fa-flask"></i> Research Platform</span>
+                        <span class="about-chip"><i class="fas fa-code-branch"></i> Open Source</span>
+                        <span class="about-chip"><i class="fas fa-microchip"></i> Pi &amp; SDR</span>
+                        <span class="about-chip"><i class="fas fa-shield-halved"></i> Non-Commercial</span>
                     </div>
-                    
-                    <div class="alert alert-warning d-flex align-items-start" role="alert">
-                        <i class="fas fa-triangle-exclamation fa-lg me-3"></i>
-                        <div>
-                            <strong>Development-Only Notice:</strong> EAS Station is actively pursuing feature parity with commercial encoder/decoders but remains experimental. It is <em>not yet</em> FCC-certified, is <em>not</em> ready for production deployment, and must only be evaluated in controlled lab and training environments until certification paths are explored.
-                        </div>
-                    </div>
-                    
-                    <div class="alert alert-danger d-flex align-items-start" role="alert">
-                        <i class="fas fa-person-circle-exclamation fa-lg me-3"></i>
-                        <div>
-                            <strong>Legal Compliance Warning:</strong> EAS Station generates <em>valid</em> Emergency Alert System (EAS) SAME headers, attention tones, and audio. Broadcasting, transmitting, or otherwise leaking these signals on-air or over monitored paths without explicit authorization is a violation of FCC rules and may trigger Primary Entry Points, Local Primaries, and other downstream facilities. Always work inside shielded test environments and never connect experimental output to production RF, STL, or streaming chains.
-                        </div>
-                    </div>
-                    
-                    <div class="alert alert-secondary d-flex align-items-start" role="alert">
-                        <i class="fas fa-scale-balanced fa-lg me-3"></i>
-                        <div>
-                            <strong>Real-World Consequences:</strong> The FCC has repeatedly issued six-figure penalties for misusing EAS tones. In 2015, iHeartMedia paid a <a href="https://docs.fcc.gov/public/attachments/DA-15-199A1.pdf" class="link-dark" target="_blank" rel="noopener">$1 million consent decree</a> after <em>The Bobby Bones Show</em> triggered false alerts. The trailer for <em>Olympus Has Fallen</em> led to a combined <a href="https://docs.fcc.gov/public/attachments/DA-14-1097A1.pdf" class="link-dark" target="_blank" rel="noopener">$1.9 million settlement</a> across multiple national networks. Misuse is traceable, and enforcement actions can include equipment seizure and license revocation.
-                        </div>
-                    </div>
-                    
-                    <div class="alert alert-dark d-flex align-items-start" role="alert">
-                        <i class="fas fa-hand-paper fa-lg me-3"></i>
-                        <div>
-                            <strong>Ethics & Accountability:</strong> This project exists to strengthen public warning readiness—not to be weaponized. If you intend to exploit the system for malicious purposes, understand that the maintainer disclaims responsibility for your actions and will cooperate with authorities to ensure accountability. Use this tool responsibly, document your lab safeguards, and treat every generated signal with the gravity of a live alert.
-                        </div>
-                    </div>
-                    
-                    <hr class="my-4">
-                    <p class="fs-5">EAS Station is a comprehensive, open-source emergency alert processing system designed for broadcasters, emergency communications professionals, and public safety organizations. It integrates CAP (Common Alerting Protocol) feeds, SAME (Specific Area Message Encoding) audio generation, and multi-channel alert distribution to provide real-time emergency notifications—all with the explicit goal of replacing utilitarian hardware appliances with a disciplined software stack running on Raspberry Pi-class platforms, SDR receivers, and a handful of HATs.</p>
                 </div>
-            </div>
+            </section>
 
-            <!-- Mission & Purpose -->
-            <div class="card shadow-sm mb-4 border-0">
-                <div class="card-body p-4">
-                    <h2 class="h4 mb-3">
-                        <i class="fas fa-bullseye me-2 text-primary"></i>Mission and Scope
-                    </h2>
-                    <div class="row">
-                        <div class="col-md-8">
-                            <div class="mb-3">
-                                <h5 class="h6 text-muted">Primary Goal</h5>
-                                <p>Provide emergency communications teams with automated CAP-to-EAS workflow, from alert ingestion through broadcast verification, with complete compliance documentation.</p>
-                            </div>
-                            <div class="mb-3">
-                                <h5 class="h6 text-muted">Drop-In Replacement Roadmap</h5>
-                                <p>Implement the nine requirement areas in the project roadmap—baseband capture, deterministic playout, hardware control, security, resilience, turnkey deployment, compliance analytics, unified documentation, and certification readiness—so the platform can mirror commercial decoder capabilities on commodity hardware.</p>
-                            </div>
+            <!-- Compliance & Safety -->
+            <section class="about-card" aria-labelledby="compliance-heading">
+                <div class="about-section-head">
+                    <span class="about-section-icon ico-danger"><i class="fas fa-triangle-exclamation"></i></span>
+                    <div>
+                        <h2 id="compliance-heading" class="about-section-title">Compliance &amp; Safety</h2>
+                        <p class="about-section-sub">Read this before you plug anything in. All four apply at once.</p>
+                    </div>
+                </div>
+                <div class="compliance-grid">
+                    <div class="compliance-item lvl-warn">
+                        <span class="compliance-ico"><i class="fas fa-flask"></i></span>
+                        <div>
+                            <p class="compliance-title">Development-Only</p>
+                            <p class="compliance-body">Experimental. Not FCC-certified. Use only in controlled lab and training environments until a certification path is established.</p>
                         </div>
-                        <div class="col-md-4">
-                            <div class="bg-light p-3 rounded">
-                                <h5 class="h6 text-muted mb-2">Key Features</h5>
-                                <ul class="list-unstyled mb-0">
-                                    <li class="mb-1"><i class="fas fa-check text-success me-2"></i>CAP Feed Aggregation</li>
-                                    <li class="mb-1"><i class="fas fa-check text-success me-2"></i>SAME Audio Generation</li>
-                                    <li class="mb-1"><i class="fas fa-check text-success me-2"></i>PostGIS Spatial Intelligence</li>
-                                    <li class="mb-1"><i class="fas fa-check text-success me-2"></i>SDR Verification</li>
-                                    <li class="mb-1"><i class="fas fa-check text-success me-2"></i>Automatic RWT Scheduling</li>
-                                    <li class="mb-1"><i class="fas fa-check text-success me-2"></i>LED Sign Integration</li>
-                                    <li class="mb-1"><i class="fas fa-check text-success me-2"></i>Custom Display Screens & VFD Graphics</li>
-                                </ul>
-                            </div>
+                    </div>
+                    <div class="compliance-item lvl-danger">
+                        <span class="compliance-ico"><i class="fas fa-broadcast-tower"></i></span>
+                        <div>
+                            <p class="compliance-title">No Live RF Leakage</p>
+                            <p class="compliance-body">The station emits <em>valid</em> SAME headers and attention tones. Never couple experimental output to on-air RF, STL, or streaming chains without explicit authorization — it <em>will</em> trigger downstream facilities.</p>
+                        </div>
+                    </div>
+                    <div class="compliance-item lvl-legal">
+                        <span class="compliance-ico"><i class="fas fa-scale-balanced"></i></span>
+                        <div>
+                            <p class="compliance-title">Real Enforcement, Real Money</p>
+                            <p class="compliance-body">iHeartMedia: <a href="https://docs.fcc.gov/public/attachments/DA-15-199A1.pdf" target="_blank" rel="noopener">$1M consent decree</a> (2015, <em>Bobby Bones</em>). <em>Olympus Has Fallen</em> trailer: <a href="https://docs.fcc.gov/public/attachments/DA-14-1097A1.pdf" target="_blank" rel="noopener">$1.9M settlement</a>. Misuse is traceable and can include equipment seizure and license revocation.</p>
+                        </div>
+                    </div>
+                    <div class="compliance-item lvl-ethics">
+                        <span class="compliance-ico"><i class="fas fa-hand"></i></span>
+                        <div>
+                            <p class="compliance-title">Ethics &amp; Accountability</p>
+                            <p class="compliance-body">This project exists to strengthen public warning readiness, not to be weaponized. The maintainer will cooperate with authorities against misuse. Treat every generated signal with the gravity of a live alert.</p>
                         </div>
                     </div>
                 </div>
-            </div>
+            </section>
+
+            <!-- Mission & Scope -->
+            <section class="about-card">
+                <div class="about-section-head">
+                    <span class="about-section-icon ico-primary"><i class="fas fa-bullseye"></i></span>
+                    <div>
+                        <h2 class="about-section-title">Mission &amp; Scope</h2>
+                        <p class="about-section-sub">CAP in, verified broadcast out — with the paper trail to prove it.</p>
+                    </div>
+                </div>
+                <div class="row g-4">
+                    <div class="col-md-7">
+                        <h6 class="text-uppercase text-muted small fw-bold mb-2" style="letter-spacing: 0.06em;">Primary Goal</h6>
+                        <p class="mb-3">Give emergency communications teams an automated CAP-to-EAS workflow — from ingestion through broadcast verification — with complete compliance documentation at every stage.</p>
+                        <h6 class="text-uppercase text-muted small fw-bold mb-2" style="letter-spacing: 0.06em;">Drop-In Replacement Roadmap</h6>
+                        <p class="mb-0">Deliver the nine roadmap pillars — baseband capture, deterministic playout, hardware control, security, resilience, turnkey deployment, compliance analytics, unified documentation, and certification readiness — so the platform mirrors commercial decoders on commodity hardware.</p>
+                    </div>
+                    <div class="col-md-5">
+                        <h6 class="text-uppercase text-muted small fw-bold mb-2" style="letter-spacing: 0.06em;">Key Features</h6>
+                        <ul class="list-unstyled mb-0">
+                            <li class="mb-2"><i class="fas fa-circle-check text-success me-2"></i>CAP Feed Aggregation</li>
+                            <li class="mb-2"><i class="fas fa-circle-check text-success me-2"></i>SAME Audio Generation</li>
+                            <li class="mb-2"><i class="fas fa-circle-check text-success me-2"></i>PostGIS Spatial Intelligence</li>
+                            <li class="mb-2"><i class="fas fa-circle-check text-success me-2"></i>SDR Verification</li>
+                            <li class="mb-2"><i class="fas fa-circle-check text-success me-2"></i>Automatic RWT Scheduling</li>
+                            <li class="mb-2"><i class="fas fa-circle-check text-success me-2"></i>LED Sign Integration</li>
+                            <li class="mb-0"><i class="fas fa-circle-check text-success me-2"></i>Custom Display Screens &amp; VFD Graphics</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
 
             <!-- Software Stack -->
-            <div class="card shadow-sm mb-4 border-0">
-                <div class="card-body p-4">
-                    <h2 class="h4 mb-3">
-                        <i class="fas fa-layer-group me-2 text-success"></i>Software Stack
-                    </h2>
-                    
-                    <div class="row">
-                        <div class="col-md-6">
-                            <h5 class="h6 text-primary mb-3">Application Framework</h5>
-                            <ul class="list-unstyled">
-                                <li class="mb-2">
-                                    <strong>Flask:</strong> Web application framework with Werkzeug server
-                                </li>
-                                <li class="mb-2">
-                                    <strong>Bootstrap 5:</strong> Mobile-first responsive UI framework
-                                </li>
-                                <li class="mb-2">
-                                    <strong>PostgreSQL + PostGIS:</strong> Spatial database for geographic filtering
-                                </li>
-                                <li class="mb-2">
-                                    <strong>Redis:</strong> Real-time metrics cache and inter-service communication
-                                </li>
-                                <li class="mb-2">
-                                    <strong>Systemd:</strong> Native service orchestration and management
-                                </li>
-                            </ul>
+            <section class="about-card">
+                <div class="about-section-head">
+                    <span class="about-section-icon ico-success"><i class="fas fa-layer-group"></i></span>
+                    <div>
+                        <h2 class="about-section-title">Software Stack</h2>
+                        <p class="about-section-sub">Boring, battle-tested pieces wired together deliberately.</p>
+                    </div>
+                </div>
+                <h6 class="text-uppercase text-muted small fw-bold mb-2" style="letter-spacing: 0.06em;">Application Framework</h6>
+                <div class="stack-grid mb-3">
+                    <div class="stack-item">
+                        <span class="stack-item-ico" style="background: linear-gradient(135deg, #000, #444);"><i class="fas fa-flask"></i></span>
+                        <div><div class="stack-item-name">Flask</div><div class="stack-item-desc">Web app framework · Werkzeug</div></div>
+                    </div>
+                    <div class="stack-item">
+                        <span class="stack-item-ico" style="background: linear-gradient(135deg, #7952B3, #563d7c);"><i class="fab fa-bootstrap"></i></span>
+                        <div><div class="stack-item-name">Bootstrap 5</div><div class="stack-item-desc">Mobile-first responsive UI</div></div>
+                    </div>
+                    <div class="stack-item">
+                        <span class="stack-item-ico" style="background: linear-gradient(135deg, #0093D0, #1F3B73);"><i class="fas fa-database"></i></span>
+                        <div><div class="stack-item-name">PostgreSQL + PostGIS</div><div class="stack-item-desc">Spatial database · geographic filtering</div></div>
+                    </div>
+                    <div class="stack-item">
+                        <span class="stack-item-ico" style="background: linear-gradient(135deg, #DC382D, #8B0000);"><i class="fas fa-bolt"></i></span>
+                        <div><div class="stack-item-name">Redis</div><div class="stack-item-desc">Metrics cache · inter-service pub/sub</div></div>
+                    </div>
+                    <div class="stack-item">
+                        <span class="stack-item-ico" style="background: linear-gradient(135deg, #333, #111);"><i class="fas fa-cogs"></i></span>
+                        <div><div class="stack-item-name">Systemd</div><div class="stack-item-desc">Native service orchestration</div></div>
+                    </div>
+                </div>
+                <h6 class="text-uppercase text-muted small fw-bold mb-2" style="letter-spacing: 0.06em;">Data &amp; Spatial Layer</h6>
+                <div class="stack-grid">
+                    <div class="stack-item">
+                        <span class="stack-item-ico"><i class="fas fa-table"></i></span>
+                        <div><div class="stack-item-name">SQLAlchemy</div><div class="stack-item-desc">ORM with Alembic migrations</div></div>
+                    </div>
+                    <div class="stack-item">
+                        <span class="stack-item-ico" style="background: linear-gradient(135deg, var(--vibrant-green), var(--vibrant-teal));"><i class="fas fa-map-location-dot"></i></span>
+                        <div><div class="stack-item-name">GeoAlchemy2</div><div class="stack-item-desc">Spatial extensions · PostGIS functions</div></div>
+                    </div>
+                    <div class="stack-item">
+                        <span class="stack-item-ico" style="background: linear-gradient(135deg, var(--vibrant-orange), var(--vibrant-yellow)); color: #1a1a1a;"><i class="fas fa-draw-polygon"></i></span>
+                        <div><div class="stack-item-name">pyshp</div><div class="stack-item-desc">ESRI Shapefile reader for boundaries</div></div>
+                    </div>
+                    <div class="stack-item">
+                        <span class="stack-item-ico" style="background: linear-gradient(135deg, var(--vibrant-teal), var(--vibrant-blue));"><i class="fas fa-arrow-down-wide-short"></i></span>
+                        <div><div class="stack-item-name">Requests</div><div class="stack-item-desc">HTTP client for CAP feed polling</div></div>
+                    </div>
+                    <div class="stack-item">
+                        <span class="stack-item-ico" style="background: linear-gradient(135deg, var(--vibrant-purple), var(--vibrant-indigo));"><i class="fas fa-code"></i></span>
+                        <div><div class="stack-item-name">BeautifulSoup4</div><div class="stack-item-desc">XML/HTML parsing for CAP messages</div></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Service Architecture -->
+            <section class="about-card">
+                <div class="about-section-head">
+                    <span class="about-section-icon ico-info"><i class="fas fa-cubes"></i></span>
+                    <div>
+                        <h2 class="about-section-title">Separated Service Architecture</h2>
+                        <p class="about-section-sub">Dedicated services with clear ownership — fault isolation by design.</p>
+                    </div>
+                </div>
+                <div class="row g-3">
+                    <div class="col-md-6 col-lg-4">
+                        <div class="feature-card fc-blue">
+                            <div class="feature-card-icon"><i class="fas fa-globe"></i></div>
+                            <h5 class="feature-card-title">app</h5>
+                            <p class="feature-card-text">Flask web UI, REST API, dashboards. <em>No hardware access.</em> Reads metrics from Redis.</p>
                         </div>
-                        <div class="col-md-6">
-                            <h5 class="h6 text-primary mb-3">Data and Spatial Layer</h5>
-                            <ul class="list-unstyled">
-                                <li class="mb-2">
-                                    <strong>SQLAlchemy:</strong> ORM with Alembic migrations
-                                </li>
-                                <li class="mb-2">
-                                    <strong>GeoAlchemy2:</strong> Spatial extensions and PostGIS functions
-                                </li>
-                                <li class="mb-2">
-                                    <strong>pyshp:</strong> ESRI Shapefile reader for boundary imports
-                                </li>
-                                <li class="mb-2">
-                                    <strong>Requests:</strong> HTTP client for CAP feed polling
-                                </li>
-                                <li class="mb-2">
-                                    <strong>BeautifulSoup4:</strong> XML/HTML parsing for CAP messages
-                                </li>
-                            </ul>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="feature-card fc-pink">
+                            <div class="feature-card-icon"><i class="fas fa-microphone"></i></div>
+                            <h5 class="feature-card-title">sdr-service</h5>
+                            <p class="feature-card-text">SDR capture, FM demodulation, SAME decoding, Icecast streaming. <em>USB access.</em></p>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="feature-card fc-orange">
+                            <div class="feature-card-icon"><i class="fas fa-sliders"></i></div>
+                            <h5 class="feature-card-title">hardware-service</h5>
+                            <p class="feature-card-text">GPIO relays, OLED/VFD displays, LED sign protocols. <em>I2C/GPIO access.</em></p>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="feature-card fc-teal">
+                            <div class="feature-card-icon"><i class="fas fa-download"></i></div>
+                            <h5 class="feature-card-title">noaa-poller / ipaws-poller</h5>
+                            <p class="feature-card-text">CAP feed polling, XML parsing, deduplication. Writes to PostgreSQL.</p>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="feature-card fc-purple">
+                            <div class="feature-card-icon"><i class="fas fa-bolt"></i></div>
+                            <h5 class="feature-card-title">Redis</h5>
+                            <p class="feature-card-text">Real-time metrics, waveforms, command pub/sub. 5 s TTL on live data.</p>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="feature-card fc-green">
+                            <div class="feature-card-icon"><i class="fas fa-database"></i></div>
+                            <h5 class="feature-card-title">PostgreSQL + PostGIS</h5>
+                            <p class="feature-card-text">Persistent storage for alerts, boundaries, configs, and compliance logs.</p>
                         </div>
                     </div>
                 </div>
-            </div>
+                <div class="alert alert-info mt-4 mb-0 d-flex align-items-start" role="alert">
+                    <i class="fas fa-circle-info me-2 mt-1"></i>
+                    <div><strong>Why separated?</strong> A web UI crash won't affect audio processing, and a hardware failure won't take down the dashboard. Every service restarts independently.</div>
+                </div>
+            </section>
 
-            <!-- Separated Service Architecture -->
-            <div class="card shadow-sm mb-4 border-0">
-                <div class="card-body p-4">
-                    <h2 class="h4 mb-3">
-                        <i class="fas fa-cubes me-2 text-info"></i>Separated Service Architecture
-                    </h2>
-                    <p>EAS Station uses a <strong>separated service architecture</strong> with dedicated services for reliability and fault isolation:</p>
-                    
-                    <div class="row g-3">
-                        <div class="col-md-6 col-lg-4">
-                            <div class="feature-card h-100">
-                                <div class="feature-card-icon">
-                                    <i class="fas fa-globe"></i>
-                                </div>
-                                <h5 class="feature-card-title">app</h5>
-                                <p class="feature-card-text">Flask web UI, REST API, dashboards. <em>No hardware access.</em> Reads metrics from Redis.</p>
-                            </div>
-                        </div>
-                        <div class="col-md-6 col-lg-4">
-                            <div class="feature-card h-100">
-                                <div class="feature-card-icon">
-                                    <i class="fas fa-microphone"></i>
-                                </div>
-                                <h5 class="feature-card-title">sdr-service</h5>
-                                <p class="feature-card-text">SDR capture, FM demodulation, SAME decoding, Icecast streaming. <em>USB access.</em></p>
-                            </div>
-                        </div>
-                        <div class="col-md-6 col-lg-4">
-                            <div class="feature-card h-100">
-                                <div class="feature-card-icon">
-                                    <i class="fas fa-sliders-h"></i>
-                                </div>
-                                <h5 class="feature-card-title">hardware-service</h5>
-                                <p class="feature-card-text">GPIO relay control, OLED/VFD displays, LED sign protocols. <em>I2C/GPIO access.</em></p>
-                            </div>
-                        </div>
-                        <div class="col-md-6 col-lg-4">
-                            <div class="feature-card h-100">
-                                <div class="feature-card-icon">
-                                    <i class="fas fa-download"></i>
-                                </div>
-                                <h5 class="feature-card-title">noaa-poller / ipaws-poller</h5>
-                                <p class="feature-card-text">CAP feed polling, XML parsing, deduplication. Writes to PostgreSQL.</p>
-                            </div>
-                        </div>
-                        <div class="col-md-6 col-lg-4">
-                            <div class="feature-card h-100">
-                                <div class="feature-card-icon">
-                                    <i class="fas fa-bolt"></i>
-                                </div>
-                                <h5 class="feature-card-title">Redis</h5>
-                                <p class="feature-card-text">Real-time metrics, waveforms, command pub/sub. 5s TTL for live data.</p>
-                            </div>
-                        </div>
-                        <div class="col-md-6 col-lg-4">
-                            <div class="feature-card h-100">
-                                <div class="feature-card-icon">
-                                    <i class="fas fa-database"></i>
-                                </div>
-                                <h5 class="feature-card-title">PostgreSQL + PostGIS</h5>
-                                <p class="feature-card-text">Persistent storage: alerts, boundaries, configs, compliance logs.</p>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="alert alert-info mt-4 mb-0" role="alert">
-                        <i class="fas fa-info-circle me-2"></i>
-                        <strong>Why separated?</strong> Service isolation means a web UI crash won't affect audio processing, and hardware failures won't bring down the dashboard. Each service can be restarted independently.
+            <!-- Capabilities pipeline -->
+            <section class="about-card">
+                <div class="about-section-head">
+                    <span class="about-section-icon ico-purple"><i class="fas fa-cogs"></i></span>
+                    <div>
+                        <h2 class="about-section-title">The Alert Pipeline</h2>
+                        <p class="about-section-sub">Four stages, one flow — CAP to verified broadcast.</p>
                     </div>
                 </div>
-            </div>
-
-            <!-- Core Capabilities -->
-            <div class="card shadow-sm mb-4 border-0">
-                <div class="card-body p-4">
-                    <h2 class="h4 mb-3">
-                        <i class="fas fa-cogs me-2 text-info"></i>Core Capabilities
-                    </h2>
-                    <p>EAS Station provides four main capability areas that work together to deliver complete emergency alert processing:</p>
-                    
-                    <div class="row g-3">
-                        <div class="col-md-6 col-lg-3">
-                            <div class="feature-card h-100">
-                                <div class="feature-card-icon">
-                                    <i class="fas fa-download"></i>
-                                </div>
-                                <h5 class="feature-card-title">Ingestion</h5>
-                                <p class="feature-card-text">CAP feed polling, message parsing, and validation</p>
-                            </div>
+                <div class="pipeline">
+                    <div class="pipeline-step">
+                        <div class="feature-card fc-blue h-100">
+                            <div class="feature-card-icon"><i class="fas fa-download"></i></div>
+                            <h5 class="feature-card-title">1 · Ingestion</h5>
+                            <p class="feature-card-text">CAP feed polling, message parsing, and validation.</p>
                         </div>
-                        <div class="col-md-6 col-lg-3">
-                            <div class="feature-card h-100">
-                                <div class="feature-card-icon">
-                                    <i class="fas fa-microphone"></i>
-                                </div>
-                                <h5 class="feature-card-title">Processing</h5>
-                                <p class="feature-card-text">SAME encoding, audio generation, and content creation</p>
-                            </div>
+                    </div>
+                    <div class="pipeline-step">
+                        <div class="feature-card fc-purple h-100">
+                            <div class="feature-card-icon"><i class="fas fa-microphone"></i></div>
+                            <h5 class="feature-card-title">2 · Processing</h5>
+                            <p class="feature-card-text">SAME encoding, audio generation, content composition.</p>
                         </div>
-                        <div class="col-md-6 col-lg-3">
-                            <div class="feature-card h-100">
-                                <div class="feature-card-icon">
-                                    <i class="fas fa-broadcast-tower"></i>
-                                </div>
-                                <h5 class="feature-card-title">Distribution</h5>
-                                <p class="feature-card-text">Multi-channel output, hardware control, and scheduling</p>
-                            </div>
+                    </div>
+                    <div class="pipeline-step">
+                        <div class="feature-card fc-orange h-100">
+                            <div class="feature-card-icon"><i class="fas fa-broadcast-tower"></i></div>
+                            <h5 class="feature-card-title">3 · Distribution</h5>
+                            <p class="feature-card-text">Multi-channel output, hardware control, scheduling.</p>
                         </div>
-                        <div class="col-md-6 col-lg-3">
-                            <div class="feature-card h-100">
-                                <div class="feature-card-icon">
-                                    <i class="fas fa-chart-line"></i>
-                                </div>
-                                <h5 class="feature-card-title">Verification</h5>
-                                <p class="feature-card-text">SDR monitoring, compliance analytics, and audit trails</p>
-                            </div>
+                    </div>
+                    <div class="pipeline-step">
+                        <div class="feature-card fc-green h-100">
+                            <div class="feature-card-icon"><i class="fas fa-chart-line"></i></div>
+                            <h5 class="feature-card-title">4 · Verification</h5>
+                            <p class="feature-card-text">SDR monitoring, compliance analytics, audit trails.</p>
                         </div>
                     </div>
                 </div>
-            </div>
+            </section>
 
-            <!-- Maintainer Information -->
-            <div class="card shadow-sm mb-4 border-0">
-                <div class="card-body p-4">
-                    <h2 class="h4 mb-3">
-                        <i class="fas fa-user me-2 text-secondary"></i>Maintainer Profile
-                    </h2>
+            <!-- Maintainer -->
+            <section class="about-card">
+                <div class="about-section-head">
+                    <span class="about-section-icon ico-purple"><i class="fas fa-user-astronaut"></i></span>
+                    <div>
+                        <h2 class="about-section-title">Maintainer</h2>
+                        <p class="about-section-sub">One operator, four disciplines, one lab.</p>
+                    </div>
+                </div>
 
-                    <!-- Identity row -->
-                    <div class="row align-items-center mb-4">
-                        <div class="col-md-8">
-                            <h3 class="h5 mb-1">Timothy Kramer <span class="text-muted fw-normal fs-6">/ KR8MER</span></h3>
-                            <p class="text-muted small mb-2">Project Lead &mdash; Putnam County, Ohio</p>
-                            <p class="mb-0">Timothy Kramer is the sole maintainer of EAS Station, an amateur radio operator with deep roots in public safety and mission-critical communications. EAS Station reflects his goal of pairing disciplined engineering practices with experimental emergency communications research.</p>
-                        </div>
-                        <div class="col-md-4 text-center mt-3 mt-md-0">
-                            <img src="{{ url_for('static', filename='img/ham-radio-icon.png') }}" alt="Amateur Radio" class="img-fluid mb-2" style="max-width: 80px;">
-                            <p class="small text-muted mb-0">Amateur Radio Emergency Service</p>
+                <div class="maintainer-identity">
+                    <div class="maintainer-avatar">
+                        <div class="maintainer-avatar-inner">
+                            <img src="{{ url_for('static', filename='img/ham-radio-icon.png') }}" alt="Amateur Radio">
                         </div>
                     </div>
+                    <div>
+                        <h3 class="maintainer-name">Timothy Kramer <span class="maintainer-callsign">/ KR8MER</span></h3>
+                        <p class="maintainer-role">Project Lead &middot; Putnam County, Ohio</p>
+                        <p class="maintainer-blurb">Sole maintainer of EAS Station — amateur radio operator with deep roots in public safety and mission-critical communications. The project pairs disciplined engineering with experimental emergency communications research.</p>
+                    </div>
+                    <div class="maintainer-aside d-none d-md-block">
+                        <i class="fas fa-broadcast-tower fa-2x mb-2" style="color: var(--vibrant-indigo);"></i>
+                        <div>Amateur Radio<br>Emergency Service</div>
+                    </div>
+                </div>
 
-                    <!-- Background cards -->
-                    <div class="row g-3">
-                        <div class="col-md-6 col-lg-3">
-                            <div class="bg-light rounded p-3 h-100">
-                                <div class="text-primary mb-2">
-                                    <i class="fas fa-radio fa-lg"></i>
-                                </div>
-                                <h6 class="mb-1">Amateur Radio</h6>
-                                <p class="small text-muted mb-0">Licensed since 2004; upgraded to General Class in 2025. Active in Skywarn weather spotting and emergency communications nets.</p>
+                <div class="row g-3">
+                    <div class="col-md-6 col-lg-3">
+                        <div class="role-chip">
+                            <span class="role-chip-ico ro-radio"><i class="fas fa-radio"></i></span>
+                            <div>
+                                <h6>Amateur Radio</h6>
+                                <p>Licensed since 2004; General Class upgrade in 2025. Active in Skywarn and emergency communications nets.</p>
                             </div>
                         </div>
-                        <div class="col-md-6 col-lg-3">
-                            <div class="bg-light rounded p-3 h-100">
-                                <div class="text-danger mb-2">
-                                    <i class="fas fa-shield-alt fa-lg"></i>
-                                </div>
-                                <h6 class="mb-1">Public Safety</h6>
-                                <p class="small text-muted mb-0">17 years of service as a deputy sheriff, building first-hand familiarity with Motorola mission-critical infrastructure and public warning workflows.</p>
+                    </div>
+                    <div class="col-md-6 col-lg-3">
+                        <div class="role-chip">
+                            <span class="role-chip-ico ro-shield"><i class="fas fa-shield-halved"></i></span>
+                            <div>
+                                <h6>Public Safety</h6>
+                                <p>17 years as a deputy sheriff — first-hand familiarity with Motorola mission-critical infrastructure and public warning workflows.</p>
                             </div>
                         </div>
-                        <div class="col-md-6 col-lg-3">
-                            <div class="bg-light rounded p-3 h-100">
-                                <div class="text-warning mb-2">
-                                    <i class="fas fa-bolt fa-lg"></i>
-                                </div>
-                                <h6 class="mb-1">Electrician</h6>
-                                <p class="small text-muted mb-0">Currently a full-time electrical panel electrician, bringing hands-on hardware discipline and a methodical troubleshooting mindset to every layer of the stack.</p>
+                    </div>
+                    <div class="col-md-6 col-lg-3">
+                        <div class="role-chip">
+                            <span class="role-chip-ico ro-bolt"><i class="fas fa-bolt"></i></span>
+                            <div>
+                                <h6>Electrician</h6>
+                                <p>Full-time electrical panel electrician. Brings hands-on hardware discipline and methodical troubleshooting to every layer.</p>
                             </div>
                         </div>
-                        <div class="col-md-6 col-lg-3">
-                            <div class="bg-light rounded p-3 h-100">
-                                <div class="text-success mb-2">
-                                    <i class="fas fa-flask fa-lg"></i>
-                                </div>
-                                <h6 class="mb-1">Home Laboratory</h6>
-                                <p class="small text-muted mb-0">Operates a lab of professional-grade radios, RTL-SDR capture nodes, digital paging decoders, and networking equipment used to validate every EAS Station release.</p>
+                    </div>
+                    <div class="col-md-6 col-lg-3">
+                        <div class="role-chip">
+                            <span class="role-chip-ico ro-flask"><i class="fas fa-flask"></i></span>
+                            <div>
+                                <h6>Home Laboratory</h6>
+                                <p>Professional-grade radios, RTL-SDR capture nodes, digital paging decoders, and networking gear — used to validate every release.</p>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
+            </section>
 
-            <!-- Data Sources & Acknowledgments -->
-            <div class="card shadow-sm mb-4 border-0">
-                <div class="card-body p-4">
-                    <h2 class="h4 mb-3">
-                        <i class="fas fa-handshake me-2 text-success"></i>Data Sources & Acknowledgments
-                    </h2>
-                    <p>EAS Station relies on publicly available data from dedicated professionals and government agencies:</p>
-
-                    <div class="row">
-                        <div class="col-md-6">
-                            <h5 class="h6 text-muted mb-2">Geographic Data</h5>
-                            <ul class="list-unstyled">
-                                <li class="mb-2">
-                                    <strong>Putnam County GIS Office</strong><br>
-                                    <span class="small text-muted">County and municipal boundary data<br>
-                                    Greg Luersman, GIS Coordinator<br>
-                                    <a href="https://www.putnamcountygis.com/Downloads.html" target="_blank" class="text-primary">putnamcountygis.com</a></span>
-                                </li>
-                                <li class="mb-2">
-                                    <strong>U.S. Census Bureau</strong><br>
-                                    <span class="small text-muted">FIPS codes and TIGER/Line shapefiles (rivers, lakes, boundaries)</span>
-                                </li>
-                                <li class="mb-2">
-                                    <strong>NOAA National Weather Service</strong><br>
-                                    <span class="small text-muted">Weather forecast zone definitions</span>
-                                </li>
-                            </ul>
+            <!-- Acknowledgments -->
+            <section class="about-card">
+                <div class="about-section-head">
+                    <span class="about-section-icon ico-success"><i class="fas fa-handshake"></i></span>
+                    <div>
+                        <h2 class="about-section-title">Data Sources &amp; Acknowledgments</h2>
+                        <p class="about-section-sub">Standing on public data and open-source shoulders.</p>
+                    </div>
+                </div>
+                <div class="row g-4">
+                    <div class="col-md-6">
+                        <div class="ack-group mb-3">
+                            <h6>Geographic Data</h6>
+                            <div class="ack-item">
+                                <strong>Putnam County GIS Office</strong>
+                                <span class="muted">County and municipal boundary data &middot; Greg Luersman, GIS Coordinator &middot;
+                                    <a href="https://www.putnamcountygis.com/Downloads.html" target="_blank" rel="noopener">putnamcountygis.com</a></span>
+                            </div>
+                            <div class="ack-item">
+                                <strong>U.S. Census Bureau</strong>
+                                <span class="muted">FIPS codes and TIGER/Line shapefiles (rivers, lakes, boundaries)</span>
+                            </div>
+                            <div class="ack-item">
+                                <strong>NOAA National Weather Service</strong>
+                                <span class="muted">Weather forecast zone definitions</span>
+                            </div>
                         </div>
-                        <div class="col-md-6">
-                            <h5 class="h6 text-muted mb-2">Alert & Protocol Sources</h5>
-                            <ul class="list-unstyled">
-                                <li class="mb-2">
-                                    <strong>NOAA/NWS</strong><br>
-                                    <span class="small text-muted">Weather alert data and CAP specifications</span>
-                                </li>
-                                <li class="mb-2">
-                                    <strong>FEMA/IPAWS</strong><br>
-                                    <span class="small text-muted">National alert system integration</span>
-                                </li>
-                            </ul>
-
-                            <h5 class="h6 text-muted mb-2 mt-3">Open Source Community</h5>
-                            <ul class="list-unstyled">
-                                <li class="mb-2">
-                                    <strong>PostGIS Team</strong><br>
-                                    <span class="small text-muted">Spatial database technology</span>
-                                </li>
-                                <li class="mb-2">
-                                    <strong>Flask & Pallets Projects</strong><br>
-                                    <span class="small text-muted">Web application framework</span>
-                                </li>
-                                <li class="mb-2">
-                                    <strong>RTL-SDR Project</strong><br>
-                                    <span class="small text-muted">Software-defined radio tools</span>
-                                </li>
-                                <li class="mb-2">
-                                    <strong>Amateur Radio Community</strong><br>
-                                    <span class="small text-muted">Testing, feedback, and field validation</span>
-                                </li>
-                            </ul>
+                        <div class="ack-group">
+                            <h6>Alert &amp; Protocol Sources</h6>
+                            <div class="ack-item">
+                                <strong>NOAA / NWS</strong>
+                                <span class="muted">Weather alert data and CAP specifications</span>
+                            </div>
+                            <div class="ack-item">
+                                <strong>FEMA / IPAWS</strong>
+                                <span class="muted">National alert system integration</span>
+                            </div>
                         </div>
                     </div>
-
-                    <div class="alert alert-info d-flex align-items-start mt-3" role="alert">
-                        <i class="fas fa-info-circle fa-lg me-3"></i>
-                        <div class="small">
-                            For complete dependency and data attribution details, see the <a href="https://github.com/KR8MER/eas-station/blob/main/docs/reference/dependency_attribution.md" target="_blank" class="alert-link">dependency attribution documentation</a> in the repository.
+                    <div class="col-md-6">
+                        <div class="ack-group">
+                            <h6>Open Source Community</h6>
+                            <div class="ack-item">
+                                <strong>PostGIS Team</strong>
+                                <span class="muted">Spatial database technology</span>
+                            </div>
+                            <div class="ack-item">
+                                <strong>Flask &amp; Pallets Projects</strong>
+                                <span class="muted">Web application framework</span>
+                            </div>
+                            <div class="ack-item">
+                                <strong>RTL-SDR Project</strong>
+                                <span class="muted">Software-defined radio tools</span>
+                            </div>
+                            <div class="ack-item">
+                                <strong>Amateur Radio Community</strong>
+                                <span class="muted">Testing, feedback, and field validation</span>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-
-            <!-- AMPR Network Disclaimer -->
-            <div class="card shadow-sm mb-4 border-0 border-start border-4 border-warning">
-                <div class="card-body p-4">
-                    <h2 class="h4 mb-3">
-                        <i class="fas fa-network-wired me-2 text-warning"></i>AMPR Network Notice
-                    </h2>
-                    <div class="alert alert-warning d-flex align-items-start mb-3" role="alert">
-                        <i class="fas fa-triangle-exclamation fa-lg me-3 mt-1 flex-shrink-0"></i>
-                        <div>
-                            <strong>Non-Commercial Use Only &mdash; AMPR 44.0.0.0/8</strong><br>
-                            This site may be accessible via the <strong>AMPRNet</strong> (IP address block
-                            <code>44.0.0.0/8</code>), the globally routed IPv4 space allocated to the amateur
-                            radio community by the <a href="https://www.ampr.org/" target="_blank" rel="noopener" class="alert-link">Amateur Radio Digital Communications (ARDC)</a>
-                            foundation. In accordance with FCC Part 97, ARDC policy, and the terms of the AMPRNet
-                            allocation, <strong>this service is strictly NON-COMMERCIAL</strong>. No commercial
-                            activity, for-profit transactions, or commercial advertising of any kind is conducted
-                            through this AMPRNet-accessible endpoint.
-                        </div>
-                    </div>
-                    <p class="mb-2">If you are accessing this service via the 44.0.0.0/8 address space, please note:</p>
-                    <ul class="mb-3">
-                        <li>This deployment is operated by a licensed amateur radio operator (<strong>KR8MER</strong>) for non-commercial research, experimentation, and emergency communications training.</li>
-                        <li>Use of this service via AMPRNet must remain consistent with FCC Part 97 non-commercial requirements.</li>
-                        <li>Commercial use of the 44.0.0.0/8 block is prohibited under ARDC allocation policy and FCC regulations.</li>
-                        <li>Gateway registration and routing for this node is maintained in compliance with AMPRNet gateway policies.</li>
-                    </ul>
-                    <p class="small text-muted mb-0">
-                        For information on the AMPRNet allocation and policy, visit
-                        <a href="https://www.ampr.org/" target="_blank" rel="noopener">ampr.org</a>.
-                        For FCC Part 97 regulations governing amateur radio, see
-                        <a href="https://www.ecfr.gov/current/title-47/chapter-I/subchapter-D/part-97" target="_blank" rel="noopener">47 CFR Part 97</a>.
-                    </p>
+                <div class="alert alert-info d-flex align-items-start mt-3 mb-0" role="alert">
+                    <i class="fas fa-circle-info me-2 mt-1"></i>
+                    <div class="small">For complete dependency and data attribution details, see the <a href="https://github.com/KR8MER/eas-station/blob/main/docs/reference/dependency_attribution.md" target="_blank" rel="noopener" class="alert-link">dependency attribution documentation</a>.</div>
                 </div>
-            </div>
+            </section>
 
-            <!-- Links & Resources -->
-            <div class="card shadow-sm border-0">
-                <div class="card-body p-4">
-                    <h2 class="h4 mb-3">
-                        <i class="fas fa-link me-2 text-primary"></i>Additional Resources
-                    </h2>
-                    <div class="row">
-                        <div class="col-md-6">
-                            <h5 class="h6 text-muted mb-2">Documentation</h5>
-                            <ul class="list-unstyled">
-                                <li class="mb-1"><a href="/help" class="text-primary">Help & Operations Guide</a></li>
-                                <li class="mb-1"><a href="https://github.com/KR8MER/eas-station" target="_blank" class="text-primary">GitHub Repository</a></li>
-                                <li class="mb-1"><a href="/terms" class="text-primary">Terms of Use</a></li>
-                                <li class="mb-1"><a href="/privacy" class="text-primary">Privacy Policy</a></li>
-                            </ul>
-                        </div>
-                        <div class="col-md-6">
-                            <h5 class="h6 text-muted mb-2">External References</h5>
-                            <ul class="list-unstyled">
-                                <li class="mb-1"><a href="https://www.weather.gov/documentation/services-web-api" target="_blank" class="text-primary">NOAA CAP Documentation</a></li>
-                                <li class="mb-1"><a href="https://www.fcc.gov/general/emergency-alert-system-eas" target="_blank" class="text-primary">FCC EAS Information</a></li>
-                                <li class="mb-1"><a href="https://www.fema.gov/emergency-managers/practitioners/integrated-public-alert-warning-system" target="_blank" class="text-primary">IPAWS Program</a></li>
-                            </ul>
-                        </div>
+            <!-- AMPR Network Notice -->
+            <section class="about-card ampr-card">
+                <div class="about-section-head">
+                    <span class="about-section-icon ico-warning"><i class="fas fa-network-wired"></i></span>
+                    <div>
+                        <h2 class="about-section-title">AMPR Network Notice</h2>
+                        <p class="about-section-sub">Non-commercial use only &middot; AMPR 44.0.0.0/8.</p>
                     </div>
                 </div>
-            </div>
+                <p class="mb-2">This site may be accessible via the <strong>AMPRNet</strong> (<code>44.0.0.0/8</code>), the globally routed IPv4 space allocated to the amateur radio community by the <a href="https://www.ampr.org/" target="_blank" rel="noopener">Amateur Radio Digital Communications (ARDC)</a> foundation. Per FCC Part 97, ARDC policy, and AMPRNet allocation terms, <strong>this service is strictly non-commercial</strong> — no for-profit transactions, no commercial advertising.</p>
+                <ul class="mb-3">
+                    <li>Operated by a licensed amateur radio operator (<strong>KR8MER</strong>) for non-commercial research, experimentation, and emergency communications training.</li>
+                    <li>AMPRNet use remains consistent with FCC Part 97 non-commercial requirements.</li>
+                    <li>Commercial use of the 44.0.0.0/8 block is prohibited under ARDC and FCC policy.</li>
+                    <li>Gateway registration and routing comply with AMPRNet gateway policies.</li>
+                </ul>
+                <p class="small text-muted mb-0">
+                    See <a href="https://www.ampr.org/" target="_blank" rel="noopener">ampr.org</a> for AMPRNet policy and
+                    <a href="https://www.ecfr.gov/current/title-47/chapter-I/subchapter-D/part-97" target="_blank" rel="noopener">47 CFR Part 97</a> for amateur radio regulations.
+                </p>
+            </section>
+
+            <!-- Resources -->
+            <section class="about-card">
+                <div class="about-section-head">
+                    <span class="about-section-icon ico-primary"><i class="fas fa-link"></i></span>
+                    <div>
+                        <h2 class="about-section-title">Additional Resources</h2>
+                        <p class="about-section-sub">Jump straight to docs and external references.</p>
+                    </div>
+                </div>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <h6 class="text-uppercase text-muted small fw-bold mb-2" style="letter-spacing: 0.06em;">Documentation</h6>
+                        <a class="resource-link" href="/help"><i class="fas fa-life-ring"></i>Help &amp; Operations Guide</a>
+                        <a class="resource-link" href="https://github.com/KR8MER/eas-station" target="_blank" rel="noopener"><i class="fab fa-github"></i>GitHub Repository</a>
+                        <a class="resource-link" href="/terms"><i class="fas fa-file-contract"></i>Terms of Use</a>
+                        <a class="resource-link" href="/privacy"><i class="fas fa-user-lock"></i>Privacy Policy</a>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="text-uppercase text-muted small fw-bold mb-2" style="letter-spacing: 0.06em;">External References</h6>
+                        <a class="resource-link" href="https://www.weather.gov/documentation/services-web-api" target="_blank" rel="noopener"><i class="fas fa-cloud-sun-rain"></i>NOAA CAP Documentation</a>
+                        <a class="resource-link" href="https://www.fcc.gov/general/emergency-alert-system-eas" target="_blank" rel="noopener"><i class="fas fa-broadcast-tower"></i>FCC EAS Information</a>
+                        <a class="resource-link" href="https://www.fema.gov/emergency-managers/practitioners/integrated-public-alert-warning-system" target="_blank" rel="noopener"><i class="fas fa-bell"></i>IPAWS Program</a>
+                    </div>
+                </div>
+            </section>
         </div>
     </div>
 </div>
