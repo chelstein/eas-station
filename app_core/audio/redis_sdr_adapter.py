@@ -70,6 +70,11 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
         self._center_frequency: int = 0  # Will be updated from Redis messages
         # Queue for audio chunks from Redis subscriber thread
         self._audio_chunk_queue: queue.Queue = queue.Queue(maxsize=100)
+        # Last-known RBDS data so cleared-on-this-cycle fields keep displaying
+        # the most recent decoded value until something new arrives, and so the
+        # `rbds_last_updated` timestamp only advances when data actually changes.
+        self._rbds_data: Optional[Any] = None
+        self._rbds_signature: Optional[tuple] = None
 
     def _create_demodulator(self) -> None:
         """Create or recreate demodulator with current settings."""
@@ -401,28 +406,64 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
                 # Override stereo_enabled with actual detection for display
                 if modulation_supports_stereo:
                     self.metrics.metadata['stereo_enabled'] = status.stereo_pilot_locked
-                
-                # Extract RBDS/RDS data if available
-                if status.rbds_data:
-                    rbds = status.rbds_data
-                    logger.debug(f"RBDS data received: PS={rbds.ps_name}, PI={rbds.pi_code}, PTY={rbds.pty}")
-                    # Add all RBDS fields to metadata for frontend display
-                    if rbds.ps_name:
-                        self.metrics.metadata['rbds_ps_name'] = rbds.ps_name
-                    if rbds.pi_code:
-                        self.metrics.metadata['rbds_pi_code'] = rbds.pi_code
-                    if rbds.radio_text:
-                        self.metrics.metadata['rbds_radio_text'] = rbds.radio_text
-                    if rbds.pty is not None:
-                        self.metrics.metadata['rbds_pty'] = rbds.pty
-                        # Map PTY code to human-readable name
-                        from .sources import RBDS_PROGRAM_TYPES
-                        self.metrics.metadata['rbds_program_type_name'] = RBDS_PROGRAM_TYPES.get(rbds.pty, f"Unknown ({rbds.pty})")
-                    if rbds.tp is not None:
-                        self.metrics.metadata['rbds_tp'] = rbds.tp
-                    if rbds.ta is not None:
-                        self.metrics.metadata['rbds_ta'] = rbds.ta
-                    if rbds.ms is not None:
-                        self.metrics.metadata['rbds_ms'] = rbds.ms
-                    # Add timestamp for when RBDS was last updated
-                    self.metrics.metadata['rbds_last_updated'] = time.time()
+
+                # RF RSSI (mean IQ magnitude).  Linear value; the UI converts to
+                # dBFS for the signal meter.  Without this the RSSI indicator is
+                # permanently blank on Redis-backed SDR sources.
+                if getattr(status, 'signal_strength', None) is not None:
+                    self.metrics.metadata['rf_signal_strength'] = float(status.signal_strength)
+                    self.metrics.metadata['rf_signal_strength_updated'] = time.time()
+
+                # Extract RBDS/RDS data if available.  We cache the last decoded
+                # object so that between decoder poll cycles we can keep showing
+                # the most recent values (RBDS groups arrive every ~100 ms, so a
+                # given _update_metrics() call very often sees the same object
+                # as the previous one — we must not restamp rbds_last_updated in
+                # that case, otherwise "last updated" looks fresh forever).
+                rbds = status.rbds_data
+                from .sources import RBDS_PROGRAM_TYPES
+                if rbds is not None:
+                    signature = (
+                        rbds.ps_name,
+                        rbds.pi_code,
+                        rbds.radio_text,
+                        rbds.pty,
+                        rbds.tp,
+                        rbds.ta,
+                        rbds.ms,
+                    )
+                    self._rbds_data = rbds
+                    # Write all fields unconditionally so cleared values propagate
+                    self.metrics.metadata['rbds_ps_name'] = rbds.ps_name
+                    self.metrics.metadata['rbds_pi_code'] = rbds.pi_code
+                    self.metrics.metadata['rbds_radio_text'] = rbds.radio_text
+                    self.metrics.metadata['rbds_pty'] = rbds.pty
+                    self.metrics.metadata['rbds_program_type_name'] = (
+                        RBDS_PROGRAM_TYPES.get(int(rbds.pty), f"Unknown ({rbds.pty})")
+                        if rbds.pty is not None else None
+                    )
+                    self.metrics.metadata['rbds_tp'] = rbds.tp
+                    self.metrics.metadata['rbds_ta'] = rbds.ta
+                    self.metrics.metadata['rbds_ms'] = rbds.ms
+                    # Only bump timestamp when the decoded content actually changed
+                    if signature != self._rbds_signature:
+                        self.metrics.metadata['rbds_last_updated'] = time.time()
+                        self._rbds_signature = signature
+                        logger.debug(
+                            f"RBDS data updated: PS={rbds.ps_name}, "
+                            f"PI={rbds.pi_code}, PTY={rbds.pty}"
+                        )
+                elif self._rbds_data is not None:
+                    # No new decode this cycle — keep last-known values on display
+                    last = self._rbds_data
+                    self.metrics.metadata['rbds_ps_name'] = last.ps_name
+                    self.metrics.metadata['rbds_pi_code'] = last.pi_code
+                    self.metrics.metadata['rbds_radio_text'] = last.radio_text
+                    self.metrics.metadata['rbds_pty'] = last.pty
+                    self.metrics.metadata['rbds_program_type_name'] = (
+                        RBDS_PROGRAM_TYPES.get(int(last.pty), f"Unknown ({last.pty})")
+                        if last.pty is not None else None
+                    )
+                    self.metrics.metadata['rbds_tp'] = last.tp
+                    self.metrics.metadata['rbds_ta'] = last.ta
+                    self.metrics.metadata['rbds_ms'] = last.ms

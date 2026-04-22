@@ -1743,10 +1743,13 @@ def main():
         logger.info(f"   - HTTP streaming: {'ACTIVE' if streaming_server_thread else 'DISABLED'} (port {streaming_port})")
         logger.info("=" * 80)
 
-        # Main loop: publish metrics every 1 second so VU meters stay live
+        # Main loop: publish metrics at 4 Hz so VU meters, RSSI and RBDS/RDS
+        # updates reach the UI as fast as a car radio refreshes its display.
+        # The WebSocket push worker already polls Redis at 4 Hz, so anything
+        # slower than this becomes the end-to-end bottleneck.
         last_metrics_time = 0
         last_source_watchdog_time = 0
-        metrics_interval = 1.0
+        metrics_interval = 0.25
         source_watchdog_interval = 30.0  # Check source health every 30 seconds
 
         while _running:
