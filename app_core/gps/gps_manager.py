@@ -17,6 +17,8 @@ See NOTICE file for complete terms.
 Repository: https://github.com/KR8MER/eas-station
 """
 
+from __future__ import annotations
+
 """GPS receiver manager for the Adafruit Ultimate GPS HAT (#2324).
 
 Reads NMEA-0183 sentences from the serial port, parses position and time
@@ -33,8 +35,6 @@ Dependencies:
 - pynmea2: NMEA-0183 sentence parser
 - RPi.GPIO (optional): PPS pulse reading
 """
-
-from __future__ import annotations
 
 import json
 import logging

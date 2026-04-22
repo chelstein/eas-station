@@ -1549,10 +1549,10 @@ class ScreenManager:
         """
         try:
             from app_core.models import CAPAlert
-            from datetime import datetime
+            from datetime import datetime, timezone
 
             count = CAPAlert.query.filter(
-                CAPAlert.expires > datetime.utcnow()
+                CAPAlert.expires > datetime.now(timezone.utc)
             ).count()
 
             return count > 0
