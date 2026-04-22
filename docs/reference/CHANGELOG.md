@@ -8,6 +8,376 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.71.62] - 2026-04-22 - Redesign About page with modern hero section and component styling
+
+### Changed
+- **`templates/about.html`** — Complete visual redesign (PR #1912). Added a
+  full-width gradient hero section with animated background glow and rainbow
+  accent bar; restructured the four compliance warnings into a responsive
+  grid of colour-coded items; converted all sections to a unified
+  `.about-card` component with consistent shadows, borders and spacing;
+  replaced the list-based tech stack with a responsive `.stack-item` grid;
+  added an alert-pipeline step visualisation and maintainer identity card.
+- ~400 lines of scoped CSS (inside `{% block extra_css %}`) using CSS custom
+  properties, `color-mix()`, `clamp()` fluid typography, backdrop filters,
+  and `headerGlow` / `gradientShift` keyframe animations. Mobile-first
+  breakpoints preserve responsive layout on tablets and phones.
+
+## [2.71.61] - 2026-04-22 - Add RF RSSI meter for FM/SDR sources
+
+### Added
+- **`templates/audio_monitoring.html`** — Real-time RF signal-strength
+  indicator (RSSI meter) for FM and SDR sources (PR #1911). Introduces
+  `.rssi-meter`, `.rssi-track`, `.rssi-fill`, `.rssi-labels` CSS classes
+  (red-to-green gradient) and helper functions `getRfSignalStrength()`,
+  `hasRfSignalStrength()`, `rssiToDbfs()`, `formatRssiLabel()`,
+  `calculateRssiFillWidth()`, `updateRssiMeter()`. The meter renders only
+  when RF signal data is present and updates via both the polling fallback
+  and the WebSocket broadcast path.
+- **`app_core/radio/demodulation.py`** — `DemodulatorStatus` gains a
+  `signal_strength` field carrying the mean IQ magnitude (linear 0.0–1.0)
+  computed on input samples before phase-continuity processing, so the
+  value reflects actual RF signal strength.
+- **`app_core/audio/sources.py`** — Extracts `signal_strength` from the
+  demodulator status, stores it in metadata as `rf_signal_strength`, and
+  tracks an update timestamp.
+
+### Changed
+- RBDS decode now uses an adaptive sliding window: a 3-second window during
+  initial acquisition, collapsing to 1 second once the decoder is locked
+  so PS / radiotext updates stream faster.
+- UI converts the linear magnitude to dBFS via `20 * log10(value)` and maps
+  the −100 to −20 dBFS range to quality ratings (Excellent > −50,
+  Good > −70, Fair > −85, Poor > −100) with a 0.2 s CSS transition.
+
+## [2.71.60] - 2026-04-22 - Replace deprecated datetime.utcnow() with timezone-aware alternatives
+
+### Fixed
+- **`app_core/websocket_push.py`** — `_emit_analytics_update()` now uses
+  `datetime.now(timezone.utc)` instead of the deprecated `datetime.utcnow()`
+  when computing the 24-hour activity window (PR #1910).
+- **`scripts/screen_manager.py`** — `_has_active_alerts()` filters active
+  alerts by expiration using a timezone-aware UTC timestamp.
+- **`app_core/auth/audit.py`** — `cleanup_old_logs()` switched to the
+  project-wide `utc_now()` helper instead of `datetime.utcnow()`.
+
+### Changed
+- `app_core/gps/gps_manager.py` and `tools/download_nws_gis_data.py` move
+  `from __future__ import annotations` above the module docstring to
+  follow PEP 563 convention.
+- All datetime comparisons in the touched modules are now timezone-aware,
+  eliminating naive/aware mix-ups and preparing the codebase for
+  Python 3.12+ where `datetime.utcnow()` is formally deprecated.
+
+## [2.71.59] - 2026-04-14 - Add description, instructions, VTEC, and sender sections to alert image export
+
+### Added
+- **`app_utils/image_export.py`** — Fills the right-hand info panel of the
+  exported social image with additional data sections (PR #1909):
+  - Enables the previously-defined-but-unused `_draw_vtac()` VTEC block.
+  - **DESCRIPTION** — word-wrapped alert description text.
+  - **INSTRUCTIONS** — yellow accent bar highlighting safety / action
+    guidance.
+  - **ISSUING OFFICE** — sender name, response type, and category.
+- All new sections respect the vertical panel boundary and stop rendering
+  gracefully once the panel is full, so undersized alerts do not overflow.
+
+## [2.71.58] - 2026-04-14 - Add county boundaries, town labels, and OSM attribution to social image map
+
+### Added
+- **`app_utils/image_export.py`** — The OpenStreetMap background in the
+  social-image export now overlays county boundaries and town labels
+  derived from the bundled TIGER data, and carries the required
+  "© OpenStreetMap contributors" attribution in the map footer
+  (PR #1908).
+
+## [2.71.57] - 2026-04-14 - Restore compass rose to social image; keep VTAC strings removed
+
+### Changed
+- **`app_utils/image_export.py`** — Re-adds the compass-rose decoration to
+  the map panel of the exported alert image after it was removed during
+  the panel redesign, while leaving the raw VTAC strings (which duplicated
+  decoded VTAC labels) out of the image (PR #1907).
+
+## [2.71.56] - 2026-04-14 - Enhance social image export: storm track, threat cards, alert text
+
+### Added
+- **`app_utils/image_export.py`** — Expands the exported 1200×630 social
+  image with a storm-track arrow overlay on the map, a restructured set of
+  severity-coloured threat cards (tornado / wind / hail), and wrapped
+  alert-text sections in the right-hand panel (PR #1906).
+
+## [2.71.55] - 2026-04-14 - Add social media image export for alert details
+
+### Added
+- **`app_utils/image_export.py`** *(new)* — Image composition engine built
+  on Pillow + requests that renders a Facebook-ready 1200×630 PNG for any
+  `CAPAlert` (PR #1905). The image contains:
+  - OpenStreetMap tile background with the alert polygon overlaid
+    (severity-coloured semi-transparent fill plus solid outline).
+  - Storm-threat card: tornado detection, wind gust, hail size /
+    descriptor.
+  - County-coverage percentage with a progress bar and service-boundary
+    counts.
+  - VTAC decoded labels and raw strings; storm-motion direction / speed.
+  - Affected-area description wrapped across rows; severity-coloured
+    header with event name and branding; footer with issued / expires
+    times.
+- **`webapp/admin/api.py`** — New `/alerts/<id>/export-image.png` route
+  wired to the new engine.
+- **`templates/alert_detail.html`** — "Export Social Image" button added
+  to the Actions card.
+
+### Changed
+- Map tiles are fetched live from OSM; a plain dark fallback is rendered
+  when tiles are unavailable (offline / timeout) so all data cards still
+  render correctly.
+
+## [2.71.54] - 2026-04-13 - Simplify ENDEC fingerprint to 3 × 0xBB
+
+### Changed
+- **`app_utils/eas_fsk.py`, `app_utils/eas_demod.py`, `app_utils/eas.py`**
+  — Replaced the station-identifier trill introduced in 2.71.51 (three
+  `0xAA` bytes) with three `0xBB` bytes (PR #1904). `0xBB` (10111011) is
+  not a valid SAME terminator on any commercial ENDEC and therefore
+  produces a consistent, unique, run-based fingerprint that cannot be
+  confused with a malformed SAME framing byte, while the KR8MER decoder
+  still reports `ENDEC_MODE_EAS_STATION` when it sees the sequence.
+
+## [2.71.53] - 2026-04-13 - Rewrite commercial licence, add trademark policy, revise Terms of Use
+
+### Added
+- **`docs/policies/TRADEMARK_POLICY.md`** *(new)* — Separates trademark
+  and branding rights from the software copyright / licensing rules
+  (PR #1903).
+
+### Changed
+- **`LICENSE-COMMERCIAL`** — Replaced with a full Commercial Software
+  Licence Agreement covering definitions, licence grant, restrictions,
+  fees, audit, support, warranties, indemnities, termination, governing
+  law (Ohio), and contact details.
+- **`NOTICE`** — Simplified and clarified to explain dual licensing,
+  AGPL obligations, and trademark / branding rules; updated the
+  last-updated date.
+- **`README.md`** — Clarifies AGPL availability, links to
+  `LICENSE-COMMERCIAL`, references the new trademark policy, and adjusts
+  attribution / branding guidance.
+- **`docs/policies/TERMS_OF_USE.md`** and **`templates/terms.html`** —
+  Revised to align the site Terms of Use with the new commercial licence,
+  trademark policy, governing-law clauses, and liability / indemnity
+  language.
+
+### Tests
+- Documentation site builds cleanly with `mkdocs build`; repository
+  pre-commit markdown / template checks pass.
+
+## [2.71.52] - 2026-04-13 - Auto-apply endec_fingerprint column on first request if migration is pending
+
+### Fixed
+- **`webapp/__init__.py` (before-request hook)** — When the 2.71.51
+  migration adding `eas_settings.endec_fingerprint` had not yet been
+  applied, every request that read `EASSettings` crashed with an
+  `UndefinedColumn` error (PR #1902). The before-request hook now detects
+  the missing column on the first request, issues an idempotent
+  `ALTER TABLE ... ADD COLUMN IF NOT EXISTS endec_fingerprint BOOLEAN`
+  with the correct default, and continues serving — the same
+  "schema-catch-up" pattern used for previous column-addition migrations.
+
+## [2.71.51] - 2026-04-13 - Add KR8MER EAS Station FSK trill fingerprint (3 × 0xAA)
+
+### Added
+- **`app_utils/eas_fsk.py`** — New `encode_terminator_bits()` helper,
+  re-exported from `__all__` (PR #1901). Emits the raw FSK symbols for an
+  arbitrary terminator byte so callers can append a post-SAME fingerprint.
+- **`app_utils/eas_demod.py`** — New `ENDEC_MODE_EAS_STATION` constant;
+  `detect_endec_mode()` voting extended with a 0xAA branch; post-message
+  terminator capture now accepts `0xAA`.
+- **`app_utils/eas.py`** — `_generate_station_terminator_samples()`
+  injects three `0xAA` bytes (10101010 binary — a distinctive ~46 ms trill
+  alternating mark/space every bit) after every burst in
+  `generate_alert_audio()`, `build_eom_file()`, and
+  `build_manual_components()`. Third-party ENDECs gracefully exit
+  post-message mode on the first `0xAA` (message already decoded), while
+  the KR8MER decoder captures the full run and reports
+  `ENDEC_MODE_EAS_STATION`.
+- **EAS settings** — New "Station Fingerprint" toggle in the broadcast
+  configuration UI (enabled by default).
+
+### Tests
+- `test_eas_decode.py` — Unit test plus DLL integration test for the
+  `EAS_STATION` mode.
+
+## [2.71.50] - 2026-04-13 - Show county names alongside FIPS codes on alert detail page
+
+### Added
+- **`webapp/received.py` + `templates/audio_received_detail.html`** — The
+  audio-received detail template now receives a `fips_names` lookup dict
+  so each FIPS / SAME code badge is rendered alongside its human-readable
+  county name (e.g. `039003` → `Ottawa County, OH`) (PR #1900).
+
+### Changed
+- Badge layout updated to stack the numeric code and county name
+  vertically with improved spacing and formatting.
+
+## [2.71.49] - 2026-04-11 - Expose min and max built-in functions to Jinja2 templates
+
+### Added
+- **`webapp/__init__.py`** — Registered Python's built-in `min` and `max`
+  as Jinja2 global functions (PR #1899). Templates can now do inline
+  `{{ min(a, b) }}` / `{{ max(a, b) }}` without a custom filter wrapper.
+
+## [2.71.48] - 2026-04-10 - Capture all 3 ZCZC bursts in stored recording by back-tracking ring position
+
+### Fixed
+- **`eas_monitor_v3.py`** — The streaming decoder fires the ZCZC callback
+  at the **end** of burst 1 (after the last header character is decoded),
+  so snapshotting the ring-buffer position at that instant produced a
+  post-ZCZC audio slice that began *after* burst 1 was already over. The
+  stored recording therefore contained only bursts 2 and 3 of ZCZC, and
+  only burst 1 of NNNN (since EOM fires on its first burst, before bursts
+  2 and 3 arrive) (PR #1898).
+- Fix subtracts 1.5 s from the ring position when burst 1 fires, so the
+  full first burst (preamble ≈ 0.25 s + message ≈ 1.0–1.2 s) is captured.
+  The `_find_narration_start()` detector already skips past SAME bursts
+  and the attention tone, so the extra head audio does not affect relay
+  output. The adjustment is centralised in a new `_zczc_ring_position()`
+  helper used in both the first-burst branch and the new-event-code
+  replacement branch.
+
+## [2.71.47] - 2026-04-10 - Correct ZCZC confidence calculation across all 3 header bursts
+
+### Fixed
+- **`app_utils/eas_demod.py`** — After a burst completed, `synced` stayed
+  `True` through the ~1 s inter-burst silence, appending ~520 zero-
+  confidence samples to `bit_confidences`. The list was not cleared on
+  the next preamble lock, so the silence entries averaged into the next
+  burst's score (PR #1897). `bit_confidences` is now reset when the next
+  preamble is detected, so each burst is measured from scratch.
+- **`eas_monitor_v3.py`** — The pending alert was unconditionally
+  overwritten by each successive burst, so the stored record always
+  reflected the last (lowest, silence-contaminated) confidence. Fix keeps
+  the maximum confidence seen across the three bursts.
+- **`app_core/audio/ingest.py` / `eas_monitor_v3.py`** — Headers injected
+  by `inject_eas_test_signal()` are digitally synthesised clean FSK, so
+  their health should be 100 %. The synthetic header string is now
+  registered at injection time and the monitor overrides confidence to
+  `1.0` when the matching alert fires.
+
+## [2.71.46] - 2026-04-10 - Fix stack light not responding correctly to alert states
+
+### Fixed
+- **`hardware_service.py`** — `_update_alert_indicators()` was a 2-state
+  machine (idle / active) and never drove the yellow "incoming alert"
+  light (PR #1896). Expanded to a proper 3-state machine:
+  `idle (green) → incoming (yellow) → active broadcast (red) → idle`.
+  `health_check_loop()` now tracks both `broadcast_was_active` and
+  `incoming_was_active` across iterations.
+- **`app_utils/eas.py` (TowerLightController)** —
+  `start_incoming_alert()` ignored the `incoming_uses_yellow` configuration
+  flag and always lit yellow even when the operator had disabled it.
+  Added an early return when the flag is `False`.
+- **`app_utils/eas.py`** — `start_incoming_alert()` was never called from
+  anywhere. Added `set_incoming_alert()`, `clear_incoming_alert()`, and
+  `get_incoming_alert_state()` backed by a new `eas:incoming_alert` Redis
+  key (with automatic 5-minute expiration). `set_incoming_alert()` is
+  called when an alert arrives pre-broadcast; `set_broadcast_active()`
+  now also clears the incoming key so the yellow → red transition happens
+  cleanly.
+
+### Tests
+- Added `test_tower_light_start_incoming_alert_disabled_sends_nothing`
+  covering the `incoming_uses_yellow=False` path.
+
+## [2.71.45] - 2026-04-09 - Low-confidence alert audit, relay tone controls, and EOM recognition
+
+### Added
+- **EAS settings** — Configurable relay tone duration and relay tone
+  profile settings surface in the broadcast configuration UI (PR #1895).
+- Enhanced EOM (`NNNN`) message detection and recognition logic in the
+  streaming decoder.
+
+### Fixed
+- Low-confidence alerts are no longer silently discarded — they are
+  logged and recorded for audit purposes while still being blocked from
+  on-air forwarding.
+- Improved audio tone end-detection so narration timing lines up with
+  the actual end of the attention tone block.
+
+## [2.71.44] - 2026-04-09 - Fix alert storage fallback to handle multiple missing DB columns
+
+### Fixed
+- **`eas_monitor_v3.py` — `_store_received_alert()`** — When the
+  `received_eas_alerts` table was missing the newer `raw_audio_data` and
+  / or `alert_source` columns (pending migration), the fallback retry
+  path continued to generate INSERT statements that referenced them
+  (setting them to `None` still emits `NULL` in the SQL), so alerts were
+  silently dropped (PR #1894). The retry now builds a fresh
+  `ReceivedEASAlert` using only the legacy column set, so the generated
+  SQL omits the missing columns entirely. Error detection widened to
+  recognise both `raw_audio_data` **and** `alert_source` column errors.
+- Warning / info log messages now describe the degraded state explicitly
+  and point operators at the pending migration.
+
+## [2.71.43] - 2026-04-09 - Fix EAS audio injection follow-ups (storage, dedup, narration timing)
+
+### Fixed
+- Alert-storage serialisation failures surfaced during test-signal
+  injection runs (PR #1893).
+- Handling of repeated emergency alerts with different event codes — the
+  second event code now replaces, rather than being dropped against, the
+  pending alert record.
+- Audio-timing synchronisation so the captured narration starts at the
+  end of the attention tone rather than overlapping with it.
+- Adjusted test-signal injection behaviour so the injected chunks no
+  longer race live audio publishing into `_eas_broadcast` (follow-up to
+  2.71.41).
+
+## [2.71.42] - 2026-04-08 - Distinguish ZCZC detections from EOM-confirmed alert dispatches
+
+### Added
+- **`eas_monitor_v3.py` / `eas_monitoring_service.py`** — Separated raw
+  ZCZC header counts from confirmed-dispatch counts (PR #1892):
+  - `_total_alerts_detected` — ZCZC header count (may be 3× per event).
+  - `_total_alerts_dispatched` — one per EOM-confirmed event.
+  - `_last_alert_dispatch_time` — Unix timestamp of the most recent
+    confirmed dispatch.
+- `get_status()` now exposes:
+  - `alerts_detected` — EOM-confirmed dispatch count (primary metric).
+  - `alerts_detected_zczc` — raw ZCZC-burst count (diagnostic metric).
+  - `last_alert_time` — Unix timestamp of the last dispatch (or `None`).
+
+### Changed
+- `_on_eom_received()` increments `_total_alerts_dispatched` and updates
+  `_last_alert_dispatch_time` on EOM confirmation.
+- Service stop log line now clearly distinguishes "alerts dispatched"
+  from "ZCZC bursts decoded".
+
+## [2.71.41] - 2026-04-08 - Fix EAS inject test signal not detected on stream sources
+
+### Fixed
+- **`app_core/audio/ingest.py` — `_capture_loop`** — An injected SAME
+  test signal was never detected on internet-radio stream sources because
+  the capture loop published a live audio chunk to `_eas_broadcast` in
+  the **same** iteration it drained `_inject_pending`, interleaving
+  music with the FSK preamble and breaking the decoder's DLL lock
+  (PR #1891). The subscriber queue saw
+  `[music_chunk][eas_fsk_1][eas_fsk_2]…` and never recovered the ~3932
+  coherent 0xAB preamble samples needed to lock at 16 kHz. SDR sources
+  were unaffected (no background audio to interleave).
+- Fix gates the live-audio publish to `_eas_broadcast` when
+  `_inject_pending` is non-empty. OTA EAS detection is unaffected:
+  `_inject_pending` is always empty during normal monitoring, so live
+  audio (which *is* the OTA EAS signal) still flows to the decoder
+  unimpeded.
+
+### Tests
+- `test_audio_pipeline_integration.py::TestStreamInjectEASGating`:
+  - `test_interleaved_live_and_inject_fails_detection` — reproduces the
+    pre-fix failure mode (interleaved audio → zero detections) to keep
+    the success test meaningful.
+  - `test_gated_inject_detects_eas_signal` — verifies the gated path
+    detects the SAME header.
+
 ## [2.71.40] - 2026-04-03 - Fix stack light and on-air popup airchain timing
 
 ### Fixed
