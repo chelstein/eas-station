@@ -39,6 +39,76 @@ import re
 from app_utils.location_settings import DEFAULT_LOCATION_SETTINGS, ensure_list
 from app_utils.alert_sources import normalize_alert_source
 
+try:
+    import serial as _pyserial  # pyserial
+except ImportError:  # pragma: no cover - pyserial is in requirements.txt
+    _pyserial = None
+
+
+class _SerialSocketAdapter:
+    """Socket-compatible wrapper around a pyserial connection.
+
+    The Alpha M-Protocol send/receive code throughout this module was
+    written against the TCP socket API (``sendall``, ``recv``,
+    ``settimeout``, ``gettimeout``, ``close``).  Rather than fork every
+    call site for serial, we expose the same surface on top of pyserial
+    so the same protocol code works unchanged over RS-232/RS-485.
+
+    ``recv`` is expected to raise ``socket.timeout`` when no data is
+    available within the configured timeout (that's how the existing
+    handshake code signals "no ACK yet"), so we mirror that here.
+    """
+
+    def __init__(self, port: str, baudrate: int, timeout: float):
+        if _pyserial is None:
+            raise RuntimeError(
+                "pyserial is required for LED serial connections but is not installed"
+            )
+        self._timeout = float(timeout) if timeout is not None else None
+        self._serial = _pyserial.Serial(
+            port=port,
+            baudrate=int(baudrate),
+            bytesize=_pyserial.EIGHTBITS,
+            parity=_pyserial.PARITY_NONE,
+            stopbits=_pyserial.STOPBITS_ONE,
+            timeout=self._timeout,
+            write_timeout=self._timeout,
+        )
+
+    # --- socket API surface the controller uses ---
+
+    def sendall(self, data: bytes) -> None:
+        self._serial.write(data)
+        # Flush so the sign sees complete frames even if the OS buffers
+        # would otherwise hold them pending.
+        try:
+            self._serial.flush()
+        except Exception:
+            pass
+
+    def recv(self, bufsize: int) -> bytes:
+        # pyserial.read() returns "" / b"" if timeout expires before any
+        # byte arrives.  The socket code throughout this module depends on
+        # ``socket.timeout`` being raised in that case, so translate.
+        data = self._serial.read(bufsize)
+        if not data:
+            raise socket.timeout("serial read timed out")
+        return data
+
+    def settimeout(self, value: Optional[float]) -> None:
+        self._timeout = value
+        self._serial.timeout = value
+        self._serial.write_timeout = value
+
+    def gettimeout(self) -> Optional[float]:
+        return self._timeout
+
+    def close(self) -> None:
+        try:
+            self._serial.close()
+        except Exception:
+            pass
+
 
 class MessagePriority(Enum):
     """Message priority levels"""
@@ -213,15 +283,22 @@ class Alpha9120CController:
         timeout: int = 10,
         location_settings: Optional[Dict[str, Union[str, List[str]]]] = None,
         type_code: str = "Z",
+        serial_port: Optional[str] = None,
+        baudrate: int = 9600,
     ):
         """
         Initialize Alpha 9120C controller with full M-Protocol support
 
         Args:
-            host: IP address of the LED sign
-            port: Communication port (default 10001)
+            host: IP address of the LED sign (network mode)
+            port: Communication port (network mode; default 10001)
             sign_id: Sign ID for multi-sign setups (default '01')
-            timeout: Socket timeout in seconds
+            timeout: Socket/serial timeout in seconds
+            serial_port: Serial device (e.g. /dev/ttyUSB0).  When set the
+                controller connects over RS-232/RS-485 instead of TCP; the
+                ``host``/``port`` arguments are ignored in that mode.
+            baudrate: Serial baud rate (default 9600, only used in serial
+                mode).  The Alpha 9120C default per the M-Protocol manual.
         """
         self.host = host
         self.port = port
@@ -229,6 +306,12 @@ class Alpha9120CController:
         self.timeout = timeout
         self.type_code = self._normalise_type_code(type_code)
         self.logger = logging.getLogger(__name__)
+        # Serial transport (optional).  When serial_port is set, we speak
+        # the same M-Protocol frames over pyserial via _SerialSocketAdapter
+        # instead of TCP.
+        self.serial_port = serial_port
+        self.baudrate = int(baudrate) if baudrate else 9600
+        self.use_serial = bool(serial_port)
         self.location_settings = location_settings or DEFAULT_LOCATION_SETTINGS
         self.default_lines = self._normalise_lines(self.location_settings.get('led_default_lines'))
 
@@ -597,17 +680,31 @@ class Alpha9120CController:
         return candidate
 
     def connect(self) -> bool:
-        """Establish connection to Alpha 9120C sign"""
+        """Establish connection to Alpha 9120C sign (TCP or serial)."""
         try:
             if self.socket:
                 self.socket.close()
 
-            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.socket.settimeout(self.timeout)
-            self.socket.connect((self.host, self.port))
-
-            self.connected = True
-            self.logger.info(f"Connected to Alpha 9120C at {self.host}:{self.port}")
+            if self.use_serial:
+                self.socket = _SerialSocketAdapter(
+                    self.serial_port,
+                    self.baudrate,
+                    self.timeout,
+                )
+                self.connected = True
+                self.logger.info(
+                    "Connected to Alpha 9120C over serial %s @ %d baud",
+                    self.serial_port,
+                    self.baudrate,
+                )
+            else:
+                self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                self.socket.settimeout(self.timeout)
+                self.socket.connect((self.host, self.port))
+                self.connected = True
+                self.logger.info(
+                    "Connected to Alpha 9120C at %s:%s", self.host, self.port
+                )
 
             # Send initialization sequence
             if self._send_initialization():
@@ -627,10 +724,14 @@ class Alpha9120CController:
             self.connected = False
             return False
         except OSError as exc:
+            target = (
+                f"serial {self.serial_port} @ {self.baudrate} baud"
+                if self.use_serial
+                else f"{self.host}:{self.port}"
+            )
             self.logger.error(
-                "Failed to connect to Alpha 9120C at %s:%s due to OS error: %s",
-                self.host,
-                self.port,
+                "Failed to connect to Alpha 9120C at %s due to OS error: %s",
+                target,
                 exc,
             )
             self.connected = False

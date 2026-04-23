@@ -172,7 +172,15 @@ class _SoapySDRReceiver(ReceiverInterface):
         # For very weak signals, even 30 timeouts may be normal before signal acquisition
         # Can be overridden per-receiver via config if needed
         self._max_consecutive_timeouts = int(os.environ.get('SDR_MAX_CONSECUTIVE_TIMEOUTS', '30'))
-        self._timeout_backoff = 0.01
+        # Exponential backoff on TIMEOUT: start at 10 ms and double up to
+        # ~2 s.  The old 0.5 s cap was too aggressive for weak signals and
+        # the previous "clamp-before-double" arithmetic meant the backoff
+        # never actually grew.  With 30 timeouts allowed, the worst-case
+        # total wait before giving up is ~30 × 2 s = 1 minute, matching the
+        # Redis/DB retry budgets elsewhere in the codebase.
+        self._initial_timeout_backoff = 0.01
+        self._max_timeout_backoff = 2.0
+        self._timeout_backoff = self._initial_timeout_backoff
 
         self._retry_backoff = 0.25
         self._max_retry_backoff = 5.0
@@ -1195,21 +1203,36 @@ class _SoapySDRReceiver(ReceiverInterface):
                     message = self._describe_soapysdr_error(error_code)
                     message = self._annotate_lock_hint(message)
                     
-                    # TIMEOUT (-1) - Implement backoff
+                    # TIMEOUT (-1) - Exponential backoff.
+                    #
+                    # Timeouts are normal on weak signals while the SDR
+                    # hasn't produced a sample buffer yet.  We sleep for a
+                    # growing interval so we don't spin the CPU, then retry.
+                    # After _max_consecutive_timeouts in a row we give up
+                    # and force a reconnect (handled above via RuntimeError).
+                    #
+                    # Previously this clamped `backoff` itself to 0.5 before
+                    # doubling, so `backoff * 2` got re-clamped back to 0.5
+                    # every iteration — the exponential growth never
+                    # happened.  Now we double the stored state and clamp
+                    # on read, matching the Redis/DB retry patterns
+                    # elsewhere in the codebase.
                     if error_code == -1:
                         self._consecutive_timeouts += 1
                         if self._consecutive_timeouts > self._max_consecutive_timeouts:
                              # Too many timeouts, force reconnection
                              raise RuntimeError(f"SDR timed out {self._consecutive_timeouts} times")
-                        
-                        # Exponential backoff
-                        backoff = min(self._timeout_backoff, 0.5)
+
+                        backoff = min(self._timeout_backoff, self._max_timeout_backoff)
                         time.sleep(backoff)
-                        self._timeout_backoff = min(backoff * 2, 0.5)
+                        self._timeout_backoff = min(
+                            self._timeout_backoff * 2,
+                            self._max_timeout_backoff,
+                        )
                         continue
                     else:
                         self._consecutive_timeouts = 0
-                        self._timeout_backoff = 0.01
+                        self._timeout_backoff = self._initial_timeout_backoff
                     
                     # OVERFLOW (-4) / UNDERFLOW (-7)
                     if error_code in (-4, -7):
@@ -1234,7 +1257,7 @@ class _SoapySDRReceiver(ReceiverInterface):
 
                 # Success - reset timeout counters
                 self._consecutive_timeouts = 0
-                self._timeout_backoff = 0.01
+                self._timeout_backoff = self._initial_timeout_backoff
 
                 if result.ret > 0:
                     reads_successful += 1

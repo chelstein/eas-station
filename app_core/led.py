@@ -114,15 +114,27 @@ else:
 
         # Get connection settings from database
         connection_type = led_settings.get('connection_type', 'network')
-        
-        if connection_type == 'network':
-            ip_address = led_settings.get('ip_address', '192.168.1.100')
-            port = led_settings.get('port', 10001)
-        else:
-            # Serial connection - not yet fully implemented in LEDSignController
-            logger.warning("LED serial connection not yet fully supported, using network mode")
-            ip_address = led_settings.get('ip_address', '192.168.1.100')
-            port = led_settings.get('port', 10001)
+
+        # Network parameters are always resolved because we fall back to
+        # them if the serial branch is misconfigured.
+        ip_address = led_settings.get('ip_address', '192.168.1.100')
+        port = led_settings.get('port', 10001)
+        serial_port = None
+        baudrate = 9600
+
+        if connection_type == 'serial':
+            serial_port = led_settings.get('serial_port') or led_settings.get('led_serial_port')
+            baudrate = int(
+                led_settings.get('baudrate')
+                or led_settings.get('led_baudrate')
+                or 9600
+            )
+            if not serial_port:
+                logger.warning(
+                    "LED connection_type='serial' but no serial_port configured; "
+                    "falling back to network mode"
+                )
+                serial_port = None
 
         try:
             settings = get_location_settings()
@@ -131,6 +143,8 @@ else:
                 ip_address,
                 port,
                 location_settings=settings,
+                serial_port=serial_port,
+                baudrate=baudrate,
             )
         except Exception as controller_error:  # pragma: no cover - defensive
             logger.error("Failed to initialize LED controller: %s", controller_error)
@@ -148,11 +162,18 @@ else:
             return None
 
         LED_AVAILABLE = True
-        logger.info(
-            "LED controller initialized successfully for %s:%s",
-            ip_address,
-            port,
-        )
+        if serial_port:
+            logger.info(
+                "LED controller initialized successfully on serial %s @ %d baud",
+                serial_port,
+                baudrate,
+            )
+        else:
+            logger.info(
+                "LED controller initialized successfully for %s:%s",
+                ip_address,
+                port,
+            )
         return led_controller
 
 
