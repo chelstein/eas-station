@@ -31,7 +31,8 @@ import queue
 import threading
 import time
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from datetime import datetime, timedelta, timezone
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -242,13 +243,21 @@ class DemodulatorConfig:
 @dataclass
 class RBDSData:
     """Decoded RBDS/RDS data from FM broadcast."""
-    pi_code: Optional[str] = None  # Program Identification
+    pi_code: Optional[str] = None  # Program Identification (raw 16-bit hex)
+    call_sign: Optional[str] = None  # Decoded US call letters (e.g. "WXYZ"), if PI is US
     ps_name: Optional[str] = None  # Program Service name (8 chars)
-    radio_text: Optional[str] = None  # Radio Text (64 chars)
+    pty_name: Optional[str] = None  # Program Type Name (PTYN, 8 chars, Group 10A)
+    radio_text: Optional[str] = None  # Radio Text (up to 64 chars)
     pty: Optional[int] = None  # Program Type
     tp: Optional[bool] = None  # Traffic Program flag
     ta: Optional[bool] = None  # Traffic Announcement flag
     ms: Optional[bool] = None  # Music/Speech flag
+    di_stereo: Optional[bool] = None  # Decoder Identification: stereo
+    di_artificial_head: Optional[bool] = None  # Decoder Identification: artificial head
+    di_compressed: Optional[bool] = None  # Decoder Identification: compressed audio
+    di_dynamic_pty: Optional[bool] = None  # Decoder Identification: dynamic PTY
+    clock_time_utc: Optional[str] = None  # ISO-8601 UTC timestamp from Group 4A
+    clock_time_local: Optional[str] = None  # ISO-8601 local timestamp from Group 4A
 
 
 @dataclass
@@ -1999,6 +2008,58 @@ class AMDemodulator:
         return np.interp(new_indices, old_indices, signal)
 
 
+# NRSC-4-B Annex D.3: 3-letter US legacy call signs with explicitly
+# assigned PI codes. Limited to well-known FM-active stations; anything
+# unlisted falls through to the 4-letter algorithmic decode or None.
+_NRSC4_THREE_LETTER_CALLSIGNS: Dict[int, str] = {
+    0x99A5: "KDKA",
+    0x9990: "KYW",
+    0x9950: "WBZ",
+    0x9952: "WGY",
+    0x9953: "WHA",
+    0x9955: "WHAS",
+    0x9959: "WHO",
+    0x9974: "WOC",
+    0x9988: "WRR",
+    0x9992: "WSB",
+    0x9993: "WSM",
+    0x9997: "WWJ",
+    0x9999: "WWL",
+}
+
+
+def pi_to_call_sign(pi: int) -> Optional[str]:
+    """Translate a 16-bit RBDS PI code to US call letters (NRSC-4-B Annex D).
+
+    4-letter call signs are derived algorithmically:
+        K-prefix: PI = 0x1000 + 676*(L2) + 26*(L3) + (L4)   → 0x1000..0x54A7
+        W-prefix: PI = 0x54A8 + 676*(L2) + 26*(L3) + (L4)   → 0x54A8..0x994F
+    where L2/L3/L4 are zero-based alphabetic indices (A=0, ..., Z=25).
+
+    A small set of 3-letter legacy calls have explicit PI assignments
+    in Annex D.3 and take precedence over the algorithmic range.
+
+    Returns None if the PI code falls outside the NRSC-4 US allocation
+    (e.g. European RDS codes where the high nibble is a country code),
+    since those would decode into nonsense call letters.
+    """
+    if pi in _NRSC4_THREE_LETTER_CALLSIGNS:
+        return _NRSC4_THREE_LETTER_CALLSIGNS[pi]
+
+    if 0x1000 <= pi <= 0x994F:
+        if pi < 0x54A8:
+            prefix = "K"
+            charsum = pi - 0x1000
+        else:
+            prefix = "W"
+            charsum = pi - 0x54A8
+        l2, rem = divmod(charsum, 676)
+        l3, l4 = divmod(rem, 26)
+        return prefix + chr(ord("A") + l2) + chr(ord("A") + l3) + chr(ord("A") + l4)
+
+    return None
+
+
 class RBDSDecoder:
     """
     RBDS/RDS decoder for FM radio.
@@ -2009,13 +2070,33 @@ class RBDSDecoder:
 
     def __init__(self):
         self.pi_code = None
+        self.call_sign = None
         self.ps_name = [' '] * 8  # 8 characters
-        self.radio_text = [' '] * 64  # 64 characters
+        self.radio_text = [' '] * 64
+        # Length of the decoded Radio Text before any 0x0D terminator.
+        # The RDS spec says a carriage-return ends the displayed text and
+        # anything beyond it is padding that must not be shown.
+        self._radio_text_len = 64
         self.pty = None
+        self.pty_name = None
+        self._pty_name_buf = [' '] * 8
+        self._pty_name_ab = 0
         self.tp = None
         self.ta = None
         self.ms = None
+        # Decoder Identification: 4 bits accumulated one-per-PS-segment
+        self.di_stereo = None
+        self.di_artificial_head = None
+        self.di_compressed = None
+        self.di_dynamic_pty = None
+        self.clock_time_utc = None
+        self.clock_time_local = None
         self._radio_text_ab = 0
+        # PS debounce: the 10-bit CRC lets through roughly 1-in-1024
+        # uncorrectable errors, so a single-pass accept occasionally
+        # flashes garbage. Only commit a PS character after seeing the
+        # same value at the same position in two consecutive broadcasts.
+        self._ps_tentative = [' '] * 8
 
     def process_group(self, group_data: Tuple[int, int, int, int]) -> Optional[bool]:
         """
@@ -2040,11 +2121,18 @@ class RBDSDecoder:
         pi_code = f"{a:04X}"
         if self.pi_code != pi_code:
             self.pi_code = pi_code
+            new_call = pi_to_call_sign(a)
+            if new_call != self.call_sign:
+                self.call_sign = new_call
             changed = True
 
         pty = (b >> 5) & 0x1F
         if self.pty != pty:
             self.pty = pty
+            # A PTY change invalidates any previously-decoded PTYN for the
+            # old program type.
+            self.pty_name = None
+            self._pty_name_buf = [' '] * 8
             changed = True
 
         tp = bool((b >> 10) & 0x1)
@@ -2068,9 +2156,18 @@ class RBDSDecoder:
                 self.ms = ms
                 changed = True
 
+            # Bit 2 of Block B carries one of four DI (Decoder
+            # Identification) bits, selected by the segment address in
+            # bits 1-0. The four bits together describe stereo / binaural
+            # / compressed / dynamic-PTY status.
+            di_bit = bool((b >> 2) & 0x1)
             address = b & 0x3
+            if self._update_di(address, di_bit):
+                changed = True
+
             chars = d
-            changed = self._update_ps_name(address, chars) or changed
+            if self._update_ps_name(address, chars):
+                changed = True
         elif group_type == 2:
             text_segment = b & 0xF
             ab_flag = (b >> 4) & 0x1
@@ -2102,48 +2199,172 @@ class RBDSDecoder:
                     if idx < len(self.radio_text):
                         if self._update_radio_text(idx, code):
                             changed = True
+        elif group_type == 4 and not version_b:
+            # Group 4A: Clock Time and Date.
+            # Block B bits 1-0 + Block C bits 15-1  -> MJD (17 bits)
+            # Block C bit 0                         -> hour MSB
+            # Block D bits 15-12                    -> hour LSBs (4 bits)
+            # Block D bits 11-6                     -> minute (6 bits)
+            # Block D bit 5                         -> local offset sign (0=+)
+            # Block D bits 4-0                      -> local offset in half-hours
+            mjd = ((b & 0x3) << 15) | ((c >> 1) & 0x7FFF)
+            hour = ((c & 0x1) << 4) | ((d >> 12) & 0xF)
+            minute = (d >> 6) & 0x3F
+            offset_sign = -1 if (d >> 5) & 0x1 else 1
+            offset_half_hours = d & 0x1F
+            if self._update_clock_time(mjd, hour, minute, offset_sign, offset_half_hours):
+                changed = True
+        elif group_type == 10 and not version_b:
+            # Group 10A: Program Type Name (8 chars in two 4-char segments).
+            ab_flag = (b >> 4) & 0x1
+            if ab_flag != self._pty_name_ab:
+                self._pty_name_ab = ab_flag
+                self._pty_name_buf = [' '] * 8
+            segment = b & 0x1
+            block_chars = [
+                (c >> 8) & 0xFF, c & 0xFF,
+                (d >> 8) & 0xFF, d & 0xFF,
+            ]
+            for i, code in enumerate(block_chars):
+                idx = segment * 4 + i
+                if idx < len(self._pty_name_buf):
+                    char = chr(code) if 32 <= code < 127 else ' '
+                    if self._pty_name_buf[idx] != char:
+                        self._pty_name_buf[idx] = char
+                        name = ''.join(self._pty_name_buf).strip()
+                        if self.pty_name != name:
+                            self.pty_name = name
+                            changed = True
 
         return changed
 
     def get_current_data(self) -> RBDSData:
         """Get the currently decoded RBDS data."""
+        rt_chars = self.radio_text[:self._radio_text_len]
         return RBDSData(
             pi_code=self.pi_code,
+            call_sign=self.call_sign,
             ps_name=''.join(self.ps_name).strip(),
-            radio_text=''.join(self.radio_text).strip(),
+            pty_name=self.pty_name,
+            radio_text=''.join(rt_chars).rstrip(),
             pty=self.pty,
             tp=self.tp,
             ta=self.ta,
-            ms=self.ms
+            ms=self.ms,
+            di_stereo=self.di_stereo,
+            di_artificial_head=self.di_artificial_head,
+            di_compressed=self.di_compressed,
+            di_dynamic_pty=self.di_dynamic_pty,
+            clock_time_utc=self.clock_time_utc,
+            clock_time_local=self.clock_time_local,
         )
 
     def _update_ps_name(self, address: int, chars: int) -> bool:
+        """Accept PS characters into the committed buffer only after two
+        consecutive identical reads at the same position. This debounces
+        the ~1-in-1024 uncorrectable CRC pass-throughs that would
+        otherwise briefly splash garbage onto the displayed PS."""
         idx = address * 2
         updated = False
         for offset in range(2):
             char_code = (chars >> (8 * (1 - offset))) & 0xFF
-            if 32 <= char_code < 127:
-                char = chr(char_code)
-            else:
-                char = ' '
+            char = chr(char_code) if 32 <= char_code < 127 else ' '
             pos = idx + offset
-            if pos < len(self.ps_name) and self.ps_name[pos] != char:
-                logger.debug(
-                    "RBDS PS: pos=%d char='%s' (0x%02X) from D=0x%04X addr=%d",
-                    pos, char, char_code, chars, address
-                )
-                self.ps_name[pos] = char
-                updated = True
+            if pos >= len(self.ps_name):
+                continue
+            if self._ps_tentative[pos] == char:
+                if self.ps_name[pos] != char:
+                    self.ps_name[pos] = char
+                    updated = True
+            else:
+                self._ps_tentative[pos] = char
         return updated
 
     def _update_radio_text(self, index: int, code: int) -> bool:
         if index >= len(self.radio_text):
+            return False
+        # RDS spec: 0x0D (carriage return) terminates the Radio Text and
+        # everything beyond it is padding to fill out the final segment.
+        if code == 0x0D:
+            if self._radio_text_len > index:
+                self._radio_text_len = index
+                return True
+            return False
+        # Drop characters past a previously-seen terminator: they are
+        # padding and must not appear in the displayed text.
+        if index >= self._radio_text_len:
             return False
         char = chr(code) if 32 <= code < 127 else ' '
         if self.radio_text[index] != char:
             self.radio_text[index] = char
             return True
         return False
+
+    def _update_di(self, address: int, di_bit: bool) -> bool:
+        """Apply one DI (Decoder Identification) bit. The four bits are
+        delivered across the four PS segments (address 0-3) and together
+        describe the audio programme properties.
+
+            address 0 -> d3: dynamic PTY indicator
+            address 1 -> d2: compressed audio
+            address 2 -> d1: artificial head / binaural
+            address 3 -> d0: stereo / mono
+        """
+        attr = {
+            0: "di_dynamic_pty",
+            1: "di_compressed",
+            2: "di_artificial_head",
+            3: "di_stereo",
+        }.get(address)
+        if attr is None:
+            return False
+        if getattr(self, attr) != di_bit:
+            setattr(self, attr, di_bit)
+            return True
+        return False
+
+    def _update_clock_time(
+        self,
+        mjd: int,
+        hour: int,
+        minute: int,
+        offset_sign: int,
+        offset_half_hours: int,
+    ) -> bool:
+        """Decode a Group 4A clock-time / date payload into ISO-8601
+        UTC and local timestamps. MJD is the Modified Julian Date; hour
+        and minute are UTC; offset is the local-time offset in signed
+        half-hours. Returns True if either stored timestamp changed."""
+        # Reject obviously malformed broadcasts (some stations pad with
+        # zeros or never set MJD). MJD 40587 == 1970-01-01.
+        if mjd < 40587 or hour > 23 or minute > 59 or offset_half_hours > 47:
+            return False
+        # MJD -> Gregorian date (Jean Meeus, Astronomical Algorithms ch. 7).
+        jd = mjd + 2400001  # integer Julian Day Number at 00:00 UT
+        a_ = jd + 32044
+        b_ = (4 * a_ + 3) // 146097
+        c_ = a_ - (146097 * b_) // 4
+        d_ = (4 * c_ + 3) // 1461
+        e_ = c_ - (1461 * d_) // 4
+        m_ = (5 * e_ + 2) // 153
+        day = e_ - (153 * m_ + 2) // 5 + 1
+        month = m_ + 3 - 12 * (m_ // 10)
+        year = 100 * b_ + d_ - 4800 + m_ // 10
+        try:
+            utc_dt = datetime(year, month, day, hour, minute, tzinfo=timezone.utc)
+        except ValueError:
+            return False
+        local_dt = utc_dt + timedelta(minutes=30 * offset_sign * offset_half_hours)
+        utc_iso = utc_dt.isoformat()
+        local_iso = local_dt.replace(tzinfo=None).isoformat()
+        changed = False
+        if self.clock_time_utc != utc_iso:
+            self.clock_time_utc = utc_iso
+            changed = True
+        if self.clock_time_local != local_iso:
+            self.clock_time_local = local_iso
+            changed = True
+        return changed
 
 
 def create_demodulator(config: DemodulatorConfig):

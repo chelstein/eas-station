@@ -1122,6 +1122,10 @@
         const rbdsText = metadata.rbds_radio_text ? escapeHtml(String(metadata.rbds_radio_text)) : null;
         const rbdsType = metadata.rbds_program_type_name ? escapeHtml(String(metadata.rbds_program_type_name)) : null;
         const rbdsPi = metadata.rbds_pi_code ? `<code>${escapeHtml(String(metadata.rbds_pi_code))}</code>` : null;
+        const rbdsCall = metadata.rbds_call_sign ? `<strong>${escapeHtml(String(metadata.rbds_call_sign))}</strong>` : null;
+        if (rbdsCall) {
+            rbdsParts.push(`Call: ${rbdsCall}`);
+        }
         if (rbdsName) {
             rbdsParts.push(`Program: ${rbdsName}`);
         }

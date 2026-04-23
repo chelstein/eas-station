@@ -474,16 +474,21 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
                     signature = (
                         rbds.ps_name,
                         rbds.pi_code,
+                        rbds.call_sign,
+                        rbds.pty_name,
                         rbds.radio_text,
                         rbds.pty,
                         rbds.tp,
                         rbds.ta,
                         rbds.ms,
+                        rbds.clock_time_local,
                     )
                     self._rbds_data = rbds
                     # Write all fields unconditionally so cleared values propagate
                     self.metrics.metadata['rbds_ps_name'] = rbds.ps_name
                     self.metrics.metadata['rbds_pi_code'] = rbds.pi_code
+                    self.metrics.metadata['rbds_call_sign'] = rbds.call_sign
+                    self.metrics.metadata['rbds_pty_name'] = rbds.pty_name
                     self.metrics.metadata['rbds_radio_text'] = rbds.radio_text
                     self.metrics.metadata['rbds_pty'] = rbds.pty
                     self.metrics.metadata['rbds_program_type_name'] = (
@@ -493,19 +498,27 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
                     self.metrics.metadata['rbds_tp'] = rbds.tp
                     self.metrics.metadata['rbds_ta'] = rbds.ta
                     self.metrics.metadata['rbds_ms'] = rbds.ms
+                    self.metrics.metadata['rbds_di_stereo'] = rbds.di_stereo
+                    self.metrics.metadata['rbds_di_artificial_head'] = rbds.di_artificial_head
+                    self.metrics.metadata['rbds_di_compressed'] = rbds.di_compressed
+                    self.metrics.metadata['rbds_di_dynamic_pty'] = rbds.di_dynamic_pty
+                    self.metrics.metadata['rbds_clock_time_utc'] = rbds.clock_time_utc
+                    self.metrics.metadata['rbds_clock_time_local'] = rbds.clock_time_local
                     # Only bump timestamp when the decoded content actually changed
                     if signature != self._rbds_signature:
                         self.metrics.metadata['rbds_last_updated'] = time.time()
                         self._rbds_signature = signature
                         logger.debug(
                             f"RBDS data updated: PS={rbds.ps_name}, "
-                            f"PI={rbds.pi_code}, PTY={rbds.pty}"
+                            f"PI={rbds.pi_code} ({rbds.call_sign}), PTY={rbds.pty}"
                         )
                 elif self._rbds_data is not None:
                     # No new decode this cycle — keep last-known values on display
                     last = self._rbds_data
                     self.metrics.metadata['rbds_ps_name'] = last.ps_name
                     self.metrics.metadata['rbds_pi_code'] = last.pi_code
+                    self.metrics.metadata['rbds_call_sign'] = last.call_sign
+                    self.metrics.metadata['rbds_pty_name'] = last.pty_name
                     self.metrics.metadata['rbds_radio_text'] = last.radio_text
                     self.metrics.metadata['rbds_pty'] = last.pty
                     self.metrics.metadata['rbds_program_type_name'] = (
@@ -515,6 +528,12 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
                     self.metrics.metadata['rbds_tp'] = last.tp
                     self.metrics.metadata['rbds_ta'] = last.ta
                     self.metrics.metadata['rbds_ms'] = last.ms
+                    self.metrics.metadata['rbds_di_stereo'] = last.di_stereo
+                    self.metrics.metadata['rbds_di_artificial_head'] = last.di_artificial_head
+                    self.metrics.metadata['rbds_di_compressed'] = last.di_compressed
+                    self.metrics.metadata['rbds_di_dynamic_pty'] = last.di_dynamic_pty
+                    self.metrics.metadata['rbds_clock_time_utc'] = last.clock_time_utc
+                    self.metrics.metadata['rbds_clock_time_local'] = last.clock_time_local
                 else:
                     # No cached data and nothing new this cycle — e.g. right
                     # after a frequency change.  Publish explicit nulls so
@@ -522,9 +541,17 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
                     # holding on to whatever was there before.
                     self.metrics.metadata['rbds_ps_name'] = None
                     self.metrics.metadata['rbds_pi_code'] = None
+                    self.metrics.metadata['rbds_call_sign'] = None
+                    self.metrics.metadata['rbds_pty_name'] = None
                     self.metrics.metadata['rbds_radio_text'] = None
                     self.metrics.metadata['rbds_pty'] = None
                     self.metrics.metadata['rbds_program_type_name'] = None
                     self.metrics.metadata['rbds_tp'] = None
                     self.metrics.metadata['rbds_ta'] = None
+                    self.metrics.metadata['rbds_di_stereo'] = None
+                    self.metrics.metadata['rbds_di_artificial_head'] = None
+                    self.metrics.metadata['rbds_di_compressed'] = None
+                    self.metrics.metadata['rbds_di_dynamic_pty'] = None
+                    self.metrics.metadata['rbds_clock_time_utc'] = None
+                    self.metrics.metadata['rbds_clock_time_local'] = None
                     self.metrics.metadata['rbds_ms'] = None

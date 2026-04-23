@@ -32,6 +32,7 @@ from app_core.radio.demodulation import (  # noqa: E402
     FMDemodulator,
     RBDSDecoder,
     RBDSWorker,
+    pi_to_call_sign,
 )
 
 
@@ -264,6 +265,148 @@ def test_group_2a_preserves_high_bit_characters():
     assert decoder.radio_text[3] == "b"
     # Stripping trims leading spaces, so the visible RT starts with "ab".
     assert data.radio_text.startswith("ab")
+
+
+def test_pi_to_call_sign_four_letter_w():
+    # Real-world example from production: PI 0x5862 is station WBKS.
+    assert pi_to_call_sign(0x5862) == "WBKS"
+
+
+def test_pi_to_call_sign_four_letter_k():
+    # K-prefix algorithmic decode: 0x1000 -> KAAA, 0x54A7 -> KZZZ.
+    assert pi_to_call_sign(0x1000) == "KAAA"
+    assert pi_to_call_sign(0x54A7) == "KZZZ"
+
+
+def test_pi_to_call_sign_w_boundary():
+    # W-prefix boundary: 0x54A8 -> WAAA, 0x994F -> WZZZ.
+    assert pi_to_call_sign(0x54A8) == "WAAA"
+    assert pi_to_call_sign(0x994F) == "WZZZ"
+
+
+def test_pi_to_call_sign_three_letter_legacy():
+    # NRSC-4 Annex D.3 assigns explicit PI codes to legacy 3-letter calls.
+    assert pi_to_call_sign(0x99A5) == "KDKA"
+    assert pi_to_call_sign(0x9990) == "KYW"
+    assert pi_to_call_sign(0x9950) == "WBZ"
+
+
+def test_pi_to_call_sign_out_of_range():
+    # European RDS codes and reserved ranges should not produce bogus calls.
+    assert pi_to_call_sign(0x0FFF) is None  # below K range
+    assert pi_to_call_sign(0x9A00) is None  # above W range + legacy table
+    assert pi_to_call_sign(0xD340) is None  # typical European PI
+
+
+def test_decoder_populates_call_sign_from_pi():
+    decoder = RBDSDecoder()
+    b = _pack_block_b(group_type=0, version_b=False, tp=False, pty=0, low_bits=0)
+    decoder.process_group((0x5862, b, 0x0000, 0x2020))
+    assert decoder.get_current_data().call_sign == "WBKS"
+
+
+def test_decoder_clock_time_from_group_4a():
+    """Group 4A: MJD 59935 = 2022-12-22, hour 17, minute 30, offset -5h
+    (local offset = -10 half-hours = -5h)."""
+    decoder = RBDSDecoder()
+    # Block B low 5 bits = top 2 bits of MJD + group-type-fixed zeros
+    mjd = 59935
+    hour = 17
+    minute = 30
+    offset_half_hours = 10  # 5h
+    offset_sign_bit = 1  # negative
+
+    # Block B bits 1-0 = MJD bits 16..15
+    b_low = (mjd >> 15) & 0x3
+    b = _pack_block_b(group_type=4, version_b=False, tp=False, pty=0, low_bits=b_low)
+    # Block C: MJD bits 14..0 shifted up by 1, plus hour MSB in bit 0
+    c = ((mjd & 0x7FFF) << 1) | ((hour >> 4) & 0x1)
+    # Block D: hour low 4 bits in 15..12, minute in 11..6, sign in bit 5, offset in 4..0
+    d = ((hour & 0xF) << 12) | ((minute & 0x3F) << 6) | (offset_sign_bit << 5) | offset_half_hours
+
+    decoder.process_group((0x5862, b, c, d))
+    data = decoder.get_current_data()
+    assert data.clock_time_utc is not None
+    assert data.clock_time_utc.startswith("2022-12-22T17:30"), data.clock_time_utc
+    # Local should be 17:30 - 5:00 = 12:30 on the same date.
+    assert data.clock_time_local.startswith("2022-12-22T12:30"), data.clock_time_local
+
+
+def test_decoder_pty_name_from_group_10a():
+    decoder = RBDSDecoder()
+    # First seed PTY so PTY-change logic doesn't reset on every group
+    b0 = _pack_block_b(group_type=0, version_b=False, tp=False, pty=9, low_bits=0)
+    decoder.process_group((0x5862, b0, 0x0000, 0x2020))
+
+    # Group 10A segment 0 ("NEWS" - just an example)
+    b = _pack_block_b(group_type=10, version_b=False, tp=False, pty=9, low_bits=0x00)
+    decoder.process_group((0x5862, b, (ord("N") << 8) | ord("E"), (ord("W") << 8) | ord("S")))
+    # Segment 1 (" CH 1")
+    b = _pack_block_b(group_type=10, version_b=False, tp=False, pty=9, low_bits=0x01)
+    decoder.process_group((0x5862, b, (ord(" ") << 8) | ord("C"), (ord("H") << 8) | ord("1")))
+
+    assert decoder.get_current_data().pty_name == "NEWS CH1"
+
+
+def test_decoder_di_bits_from_group_0():
+    decoder = RBDSDecoder()
+
+    # Address 3 -> stereo bit (d0). DI bit = 1 on segment 3.
+    for addr, di in [(0, True), (1, False), (2, False), (3, True)]:
+        low = (di << 2) | addr  # bit 2 = DI, bits 1..0 = address
+        b = _pack_block_b(group_type=0, version_b=False, tp=False, pty=0, low_bits=low)
+        decoder.process_group((0x5862, b, 0x0000, 0x2020))
+
+    data = decoder.get_current_data()
+    assert data.di_dynamic_pty is True    # address 0
+    assert data.di_compressed is False    # address 1
+    assert data.di_artificial_head is False  # address 2
+    assert data.di_stereo is True         # address 3
+
+
+def test_ps_name_debounces_single_pass_corruption():
+    """A PS character should only commit after two consecutive identical reads.
+
+    This catches the ~1-in-1024 rate at which the 10-bit CRC lets through
+    uncorrected errors. The first read of a position is tentative; it only
+    becomes visible once a second read confirms it.
+    """
+    decoder = RBDSDecoder()
+
+    # Single spurious read at position 0, 1 -> should NOT appear in PS
+    b = _pack_block_b(group_type=0, version_b=False, tp=False, pty=0, low_bits=0x00)
+    decoder.process_group((0x5862, b, 0x0000, (ord("X") << 8) | ord("Y")))
+    assert decoder.get_current_data().ps_name == ""
+
+    # Second identical read confirms it
+    decoder.process_group((0x5862, b, 0x0000, (ord("X") << 8) | ord("Y")))
+    assert decoder.get_current_data().ps_name == "XY"
+
+    # A different char at the same position should NOT immediately overwrite
+    decoder.process_group((0x5862, b, 0x0000, (ord("Z") << 8) | ord("Y")))
+    assert decoder.get_current_data().ps_name == "XY"
+
+    # But two consecutive 'Z' reads do overwrite
+    decoder.process_group((0x5862, b, 0x0000, (ord("Z") << 8) | ord("Y")))
+    assert decoder.get_current_data().ps_name == "ZY"
+
+
+def test_radio_text_trims_at_carriage_return():
+    """Per RDS spec, 0x0D ends the Radio Text; anything past it must not be shown.
+
+    Without this handling, stations that terminate RT short of 64 chars and
+    pad the rest with spaces or junk would leak padding into the display.
+    """
+    decoder = RBDSDecoder()
+
+    # Segment 0: "Hell"
+    b = _pack_block_b(group_type=2, version_b=False, tp=False, pty=0, low_bits=0x00)
+    decoder.process_group((0x5862, b, (ord("H") << 8) | ord("e"), (ord("l") << 8) | ord("l")))
+    # Segment 1: "o!\r<junk>"  -- '!' then CR terminator, then padding
+    b = _pack_block_b(group_type=2, version_b=False, tp=False, pty=0, low_bits=0x01)
+    decoder.process_group((0x5862, b, (ord("o") << 8) | ord("!"), (0x0D << 8) | ord("X")))
+
+    assert decoder.get_current_data().radio_text == "Hello!"
 
 
 def test_group_2a_ab_flag_clears_buffer():
