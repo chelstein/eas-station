@@ -1,0 +1,52 @@
+{#
+    EAS Gradient Hero Banner
+    ------------------------
+    The same indigo → purple → pink gradient banner introduced on the About
+    page, with an animated rainbow underline and optional logo, title, lead
+    copy, and chip row. Designed to be reusable as a page header.
+
+    Usage:
+        {% with
+            hero_title='Alert History',
+            hero_lead='Every decoded alert, with the paper trail.',
+            hero_logo=false,
+            hero_chips=[
+                {'icon': 'fas fa-broadcast-tower', 'label': 'Live'},
+                {'icon': 'fas fa-database', 'label': 'Audited'},
+            ]
+        %}
+            {% include 'partials/hero.html' %}
+        {% endwith %}
+
+    Parameters (all optional unless noted):
+        hero_title    Main headline (required for a meaningful hero).
+        hero_lead     One-line descriptive copy below the title.
+        hero_logo     If truthy, renders the `logo_wordmark` partial
+                      centered above the title. Defaults to false.
+        hero_chips    Iterable of {'icon': 'fa-...', 'label': 'Text'} dicts
+                      rendered as pill chips beneath the lead.
+        hero_class    Extra class(es) appended to `.eas-hero`.
+
+    The gradient / glow / animation are defined in static/css/styles.css
+    under `.eas-hero`; this partial only supplies markup.
+#}
+<section class="eas-hero{% if hero_class %} {{ hero_class }}{% endif %}">
+    <div class="eas-hero-inner">
+        {% if hero_logo %}
+            {% with logo_classes='eas-hero-logo', logo_style='' %}
+                {% include 'partials/logo_wordmark.html' %}
+            {% endwith %}
+        {% endif %}
+        {% if hero_title %}
+            <h1 class="eas-hero-title">{{ hero_title }}</h1>
+        {% endif %}
+        {% if hero_lead %}
+            <p class="eas-hero-lead">{{ hero_lead }}</p>
+        {% endif %}
+        {% if hero_chips %}
+            {% with chips=hero_chips %}
+                {% include 'partials/chip_row.html' %}
+            {% endwith %}
+        {% endif %}
+    </div>
+</section>
