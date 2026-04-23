@@ -1,0 +1,31 @@
+{#
+    EAS Chip Row
+    ------------
+    Renders a row of pill "chips" (icon + uppercase label) in the style of
+    the About page hero meta row. Useful anywhere we need to communicate
+    two or three facts at a glance (status, mode, scope).
+
+    Usage:
+        {% with chips=[
+            {'icon': 'fas fa-flask', 'label': 'Research Platform'},
+            {'icon': 'fas fa-code-branch', 'label': 'Open Source'},
+        ] %}
+            {% include 'partials/chip_row.html' %}
+        {% endwith %}
+
+    Parameters:
+        chips       Iterable of dicts with keys:
+                      icon  - Font Awesome class (required)
+                      label - Chip text (required)
+        chip_class  Extra class(es) on the wrapping `.eas-chip-row`.
+#}
+{% if chips %}
+<div class="eas-chip-row{% if chip_class %} {{ chip_class }}{% endif %}">
+    {% for chip in chips %}
+    <span class="eas-chip">
+        {% if chip.icon %}<i class="{{ chip.icon }}"></i>{% endif %}
+        {{ chip.label }}
+    </span>
+    {% endfor %}
+</div>
+{% endif %}
