@@ -75,6 +75,12 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
         # `rbds_last_updated` timestamp only advances when data actually changes.
         self._rbds_data: Optional[Any] = None
         self._rbds_signature: Optional[tuple] = None
+        # Track the previously-seen center frequency so we can reset RBDS
+        # state (and clear the cached PS/RT from the old station) whenever
+        # the operator tunes somewhere new.  Without this, the UI keeps
+        # showing the previous station's metadata until the new station's
+        # first RBDS group is decoded.
+        self._last_rbds_reset_frequency: Optional[int] = None
 
     def _create_demodulator(self) -> None:
         """Create or recreate demodulator with current settings."""
@@ -244,7 +250,36 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
 
                     # Update metadata
                     new_sample_rate = data.get('sample_rate', self._iq_sample_rate)
+                    prev_center_frequency = self._center_frequency
                     self._center_frequency = data.get('center_frequency', self._center_frequency)
+
+                    # Reset RBDS on frequency change.  The M&M / Costas loop
+                    # state, the 57 kHz carrier phase reference and the
+                    # decoded PS/PI/radiotext all belong to the previous
+                    # station; keeping them around both delays re-lock and
+                    # leaves the UI showing stale metadata until the new
+                    # station's first group is decoded.  We treat the first
+                    # message (prev==0) as an initial tune and reset too so
+                    # nothing leaks across receiver restarts.
+                    if (
+                        self._center_frequency
+                        and self._center_frequency != self._last_rbds_reset_frequency
+                    ):
+                        if prev_center_frequency and prev_center_frequency != self._center_frequency:
+                            logger.info(
+                                "Frequency change detected for %s: %d Hz -> %d Hz; resetting RBDS state",
+                                self._receiver_id,
+                                prev_center_frequency,
+                                self._center_frequency,
+                            )
+                        self._rbds_data = None
+                        self._rbds_signature = None
+                        if self._demodulator is not None and hasattr(self._demodulator, 'reset_rbds'):
+                            try:
+                                self._demodulator.reset_rbds()
+                            except Exception as exc:  # pragma: no cover - defensive
+                                logger.debug("reset_rbds failed: %s", exc)
+                        self._last_rbds_reset_frequency = self._center_frequency
 
                     # CRITICAL FIX: Create demodulator on first message, then only recreate for significant rate changes
                     # This prevents the "restart loop" where demodulator is created with wrong default rate (2.5MHz),
@@ -407,6 +442,19 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
                 if modulation_supports_stereo:
                     self.metrics.metadata['stereo_enabled'] = status.stereo_pilot_locked
 
+                # RBDS lock state.  Lets the UI render a LOCKING / LOCKED
+                # badge so users know whether a missing PS/RT means no data
+                # yet (still locking) or just nothing transmitted.
+                rbds_synced = bool(getattr(status, 'rbds_synced', False))
+                self.metrics.metadata['rbds_synced'] = rbds_synced
+                if rbds_synced:
+                    lock_state = 'LOCKED'
+                elif modulation_supports_stereo:
+                    lock_state = 'LOCKING'
+                else:
+                    lock_state = 'UNAVAILABLE'
+                self.metrics.metadata['rbds_lock_state'] = lock_state
+
                 # RF RSSI (mean IQ magnitude).  Linear value; the UI converts to
                 # dBFS for the signal meter.  Without this the RSSI indicator is
                 # permanently blank on Redis-backed SDR sources.
@@ -467,3 +515,16 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
                     self.metrics.metadata['rbds_tp'] = last.tp
                     self.metrics.metadata['rbds_ta'] = last.ta
                     self.metrics.metadata['rbds_ms'] = last.ms
+                else:
+                    # No cached data and nothing new this cycle — e.g. right
+                    # after a frequency change.  Publish explicit nulls so
+                    # the UI clears the previous station's PS/RT instead of
+                    # holding on to whatever was there before.
+                    self.metrics.metadata['rbds_ps_name'] = None
+                    self.metrics.metadata['rbds_pi_code'] = None
+                    self.metrics.metadata['rbds_radio_text'] = None
+                    self.metrics.metadata['rbds_pty'] = None
+                    self.metrics.metadata['rbds_program_type_name'] = None
+                    self.metrics.metadata['rbds_tp'] = None
+                    self.metrics.metadata['rbds_ta'] = None
+                    self.metrics.metadata['rbds_ms'] = None

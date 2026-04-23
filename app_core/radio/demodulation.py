@@ -262,6 +262,10 @@ class DemodulatorStatus:
     # for normalized float samples).  The UI converts this to dBFS for the
     # RF RSSI meter.
     signal_strength: float = 0.0
+    # True once the RBDS bit-level sync state machine has locked.  Lets the
+    # UI show a "LOCKING" vs "LOCKED" indicator instead of leaving users
+    # guessing why no data has appeared yet.
+    rbds_synced: bool = False
 
 
 class RBDSWorker:
@@ -277,13 +281,13 @@ class RBDSWorker:
     RBDS_INTERMEDIATE_RATE = 25000  # Target rate after decimation before resampling (Hz)
 
     # Sliding-window decode thresholds (samples at the 19 kHz RBDS rate).
-    # Before the bit-level sync state machine locks we need a generous window so
-    # the M&M and Costas loops can converge (~3 seconds).  Once locked their
-    # state is carried forward between batches, so a 1-second slice is enough
-    # to keep them locked and PS/radiotext updates arrive roughly once per
-    # second - comparable to a car radio's head unit.
-    RBDS_UNSYNCED_WINDOW = 57000   # ~3 seconds @ 19 kHz - initial acquisition
-    RBDS_SYNCED_WINDOW = 19000     # ~1 second  @ 19 kHz - fast streaming updates
+    # M&M and Costas state is carried forward across batches (see comments in
+    # _process_rbds), so the loops keep converging between iterations even
+    # with a short window.  A 1-second batch lets the sync state machine in
+    # _decode_rbds_groups run every second, which is what actually determines
+    # how fast we lock — comparable to a car radio's head unit (~1-2 s).
+    RBDS_UNSYNCED_WINDOW = 19000   # ~1 second @ 19 kHz - fast initial lock
+    RBDS_SYNCED_WINDOW = 19000     # ~1 second @ 19 kHz - fast streaming updates
 
     def __init__(self, sample_rate: int, intermediate_rate: int):
         """Initialize RBDS worker thread.
@@ -305,6 +309,11 @@ class RBDSWorker:
 
         # Worker thread
         self._stop_event = threading.Event()
+        # Set by callers (e.g. frequency change) to ask the worker to drop
+        # all sync / loop / decoder state on its next iteration.  Doing the
+        # reset inside the worker thread avoids racing with _process_rbds
+        # reading filters or sync-state that the caller is rewriting.
+        self._reset_event = threading.Event()
         self._thread: Optional[threading.Thread] = None
 
         # RBDS processing state (initialized in _init_rbds_state)
@@ -492,6 +501,73 @@ class RBDSWorker:
         with self._data_lock:
             return self._latest_data
 
+    def is_synced(self) -> bool:
+        """Whether the RBDS bit-level sync state machine has locked."""
+        return bool(getattr(self, '_rbds_synced', False))
+
+    def reset(self) -> None:
+        """Request the worker thread to drop all sync/decoder state.
+
+        Used when the tuned frequency changes: the carrier/symbol-timing
+        state from the previous station is meaningless for the new one, and
+        the last decoded PS/PI/radiotext belongs to a different station and
+        must not keep displaying.
+
+        The actual reset runs inside the worker thread (via
+        _apply_reset) to avoid racing with _process_rbds.
+        """
+        # Drop cached decoded metadata immediately so get_latest_data()
+        # stops returning the previous station's PS/PI/radiotext.
+        with self._data_lock:
+            self._latest_data = None
+
+        # Drain samples the audio thread has already queued, so the worker
+        # doesn't chew through a second of stale samples before noticing
+        # the reset request.
+        try:
+            while True:
+                self._sample_queue.get_nowait()
+        except queue.Empty:
+            pass
+
+        self._reset_event.set()
+
+    def _apply_reset(self) -> None:
+        """Runs in the worker thread to rebuild RBDS state cleanly."""
+        # Rebuild filters / loop / decoder.  RBDSDecoder is recreated so
+        # PS/RT buffers start blank.
+        self._init_rbds_state()
+
+        # _init_rbds_state doesn't own the bit-level sync state machine
+        # vars (they're lazily created in _decode_rbds_groups), so clear
+        # them explicitly here.  Next call to _decode_rbds_groups will
+        # re-initialize them from scratch.
+        for attr in (
+            '_rbds_synced',
+            '_rbds_presync',
+            '_rbds_wrong_blocks_counter',
+            '_rbds_blocks_counter',
+            '_rbds_group_good_blocks_counter',
+            '_rbds_reg',
+            '_rbds_lastseen_offset_counter',
+            '_rbds_lastseen_offset',
+            '_rbds_block_bit_counter',
+            '_rbds_block_number',
+            '_rbds_group_assembly_started',
+            '_rbds_bytes_array',
+            '_rbds_global_bit_counter',
+            '_rbds_inverted_polarity',
+            '_rbds_sample_buffer',
+        ):
+            if hasattr(self, attr):
+                delattr(self, attr)
+
+        # Clear any bits already accumulated at the old carrier phase.
+        self._rbds_bit_buffer = []
+        self._sample_index = 0
+
+        logger.info("RBDS worker state reset (new station or forced resync)")
+
     def _worker_loop(self) -> None:
         """Main worker loop - processes RBDS samples from queue."""
         logger.info("RBDS worker thread started")
@@ -499,6 +575,12 @@ class RBDSWorker:
         groups_decoded = 0
 
         while not self._stop_event.is_set():
+            # Apply pending reset before touching any filter/sync state so
+            # we never read half-updated buffers from the caller's thread.
+            if self._reset_event.is_set():
+                self._reset_event.clear()
+                self._apply_reset()
+
             try:
                 # Wait for samples with timeout (allows checking stop_event)
                 multiplex, sample_offset = self._sample_queue.get(timeout=0.5)
@@ -1474,6 +1556,30 @@ class FMDemodulator:
         """Get the most recent demodulator status (stereo pilot, RBDS data)."""
         return getattr(self, '_last_status', None)
 
+    def reset_rbds(self) -> None:
+        """Drop all RBDS state (sync, filters, decoded metadata).
+
+        Call this when tuning to a new station.  Without it, the decoder
+        keeps showing the previous station's PS/radiotext until the new
+        station's first group gets decoded, and the carrier-phase / symbol
+        timing state from the old station delays re-locking.
+        """
+        if self._rbds_worker is not None:
+            self._rbds_worker.reset()
+        # Also drop the last-status reference to the old station's RBDS
+        # data so any downstream consumer that reads get_last_status()
+        # before the next demodulate() sees a clean slate.
+        last = getattr(self, '_last_status', None)
+        if last is not None:
+            last.rbds_data = None
+            last.rbds_synced = False
+
+    def is_rbds_synced(self) -> bool:
+        """True once the RBDS bit-level sync state machine has locked."""
+        if self._rbds_worker is None:
+            return False
+        return self._rbds_worker.is_synced()
+
     def demodulate(self, iq_samples: np.ndarray) -> Tuple[np.ndarray, Optional[DemodulatorStatus]]:
         """
         Demodulate FM signal from IQ samples.
@@ -1643,6 +1749,11 @@ class FMDemodulator:
             stereo_pilot_strength=stereo_pilot_strength,
             is_stereo=self._stereo_enabled and stereo_pilot_locked,
             signal_strength=rf_signal_strength,
+            rbds_synced=(
+                self._rbds_worker.is_synced()
+                if self._rbds_enabled and self._rbds_worker is not None
+                else False
+            ),
         )
 
         return audio.astype(np.float32), status
