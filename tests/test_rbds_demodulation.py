@@ -27,7 +27,12 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app_core.radio.demodulation import DemodulatorConfig, FMDemodulator, RBDSWorker  # noqa: E402
+from app_core.radio.demodulation import (  # noqa: E402
+    DemodulatorConfig,
+    FMDemodulator,
+    RBDSDecoder,
+    RBDSWorker,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -144,6 +149,140 @@ def test_rbds_submit_samples_accepts_offset():
     worker.submit_samples(multiplex, sample_offset=0)
     worker.submit_samples(multiplex, sample_offset=512)
     worker.stop()
+
+
+# ---------------------------------------------------------------------------
+# RBDSDecoder.process_group tests
+#
+# Block B layout per EN 50067 / NRSC-4:
+#   bits 15..12 = group type (0..15)
+#   bit    11   = version (0=A, 1=B)
+#   bit    10   = TP
+#   bits  9..5  = PTY (5 bits)
+#   bits  4..0  = group-type-dependent payload
+# ---------------------------------------------------------------------------
+
+
+def _pack_block_b(group_type: int, version_b: bool, tp: bool, pty: int, low_bits: int) -> int:
+    return (
+        ((group_type & 0xF) << 12)
+        | ((1 if version_b else 0) << 11)
+        | ((1 if tp else 0) << 10)
+        | ((pty & 0x1F) << 5)
+        | (low_bits & 0x1F)
+    )
+
+
+def test_group_0a_decodes_ta_ms_and_ps():
+    """Group 0A carries TA (bit 4), MS (bit 3) and a PS segment."""
+    decoder = RBDSDecoder()
+    pi = 0x4FB5
+
+    # segment 0, TA=1, MS=1, DI=0 → low 5 bits = 0b11000 = 0x18
+    b = _pack_block_b(group_type=0, version_b=False, tp=True, pty=5, low_bits=0x18)
+    # block D carries the two PS chars "EA"
+    decoder.process_group((pi, b, 0x0000, (ord("E") << 8) | ord("A")))
+
+    data = decoder.get_current_data()
+    assert data.pi_code == "4FB5"
+    assert data.pty == 5
+    assert data.tp is True
+    assert data.ta is True
+    assert data.ms is True
+    assert data.ps_name.startswith("EA")
+
+
+def test_group_2_does_not_clobber_ta_ms():
+    """Regression: TA and MS must only be read from Group 0A/0B.
+
+    Bits 4-0 of Block B are group-type-dependent. Previously the decoder
+    extracted TA from bit 4 and MS from bit 3 unconditionally, so any
+    Group 2 (RadioText) message overwrote the real TA/MS with the RT A/B
+    flag and a text-segment bit.
+    """
+    decoder = RBDSDecoder()
+    pi = 0x4FB5
+
+    # First seed the decoder with a Group 0A carrying TA=0, MS=0
+    b0 = _pack_block_b(group_type=0, version_b=False, tp=False, pty=0, low_bits=0b00000)
+    decoder.process_group((pi, b0, 0x0000, 0x2020))  # "  " PS chars
+    assert decoder.ta is False
+    assert decoder.ms is False
+
+    # Now send a Group 2A with AB flag = 1 (bit 4) and an odd segment
+    # address that sets bit 3. With the bug present this would flip TA
+    # and MS to True.
+    b2 = _pack_block_b(group_type=2, version_b=False, tp=False, pty=0, low_bits=0b11000)
+    decoder.process_group((pi, b2, 0x4865, 0x6C6C))  # "Hell"
+
+    assert decoder.ta is False, "TA must not be set by Group 2 A/B flag"
+    assert decoder.ms is False, "MS must not be set by Group 2 segment bits"
+
+
+def test_group_2a_decodes_radiotext_segment():
+    """Group 2A delivers 4 RT characters per segment (2 from C, 2 from D)."""
+    decoder = RBDSDecoder()
+    pi = 0x4FB5
+
+    # segment 0, AB flag = 0
+    b = _pack_block_b(group_type=2, version_b=False, tp=False, pty=0, low_bits=0x00)
+    decoder.process_group((pi, b, (ord("H") << 8) | ord("e"), (ord("l") << 8) | ord("l")))
+
+    # segment 1
+    b = _pack_block_b(group_type=2, version_b=False, tp=False, pty=0, low_bits=0x01)
+    decoder.process_group((pi, b, (ord("o") << 8) | ord(" "), (ord("R") << 8) | ord("T")))
+
+    data = decoder.get_current_data()
+    assert data.radio_text.startswith("Hello RT")
+
+
+def test_group_2a_preserves_high_bit_characters():
+    """RT mask must be 0xFF, not 0x7F.
+
+    With the old 7-bit mask, an RDS character like 0xE9 ('é' in Annex E)
+    was silently rewritten to 0x69 ('i'), producing a plausible but
+    wrong ASCII character. After the fix, the high bit survives the
+    mask; since the printable-ASCII filter in _update_radio_text still
+    rejects codes >= 127, the slot shows as space rather than a lying
+    ASCII character.
+    """
+    decoder = RBDSDecoder()
+    pi = 0x4FB5
+
+    b = _pack_block_b(group_type=2, version_b=False, tp=False, pty=0, low_bits=0x00)
+    # Block C: two RDS-Annex-E chars (0xE9 0xE8 → 'é' 'è' in Latin locales).
+    # Block D: plain ASCII so we can anchor the segment.
+    decoder.process_group((pi, b, (0xE9 << 8) | 0xE8, (ord("a") << 8) | ord("b")))
+
+    data = decoder.get_current_data()
+    # Positions 0 and 1 should not be the wrong-ASCII fallback that the
+    # 0x7F mask produced (0xE9 & 0x7F = 0x69 = 'i', 0xE8 & 0x7F = 0x68 = 'h').
+    assert decoder.radio_text[0] != "i"
+    assert decoder.radio_text[1] != "h"
+    # Positions 2 and 3 from block D remain plain ASCII.
+    assert decoder.radio_text[2] == "a"
+    assert decoder.radio_text[3] == "b"
+    # Stripping trims leading spaces, so the visible RT starts with "ab".
+    assert data.radio_text.startswith("ab")
+
+
+def test_group_2a_ab_flag_clears_buffer():
+    """Toggling the RT A/B flag must clear the radio-text buffer."""
+    decoder = RBDSDecoder()
+    pi = 0x4FB5
+
+    # First pass: AB=0, segment 0, "Hell"
+    b = _pack_block_b(group_type=2, version_b=False, tp=False, pty=0, low_bits=0x00)
+    decoder.process_group((pi, b, (ord("H") << 8) | ord("e"), (ord("l") << 8) | ord("l")))
+    assert decoder.radio_text[0] == "H"
+
+    # Flip AB flag: buffer must reset regardless of segment number
+    b = _pack_block_b(group_type=2, version_b=False, tp=False, pty=0, low_bits=0x10)
+    decoder.process_group((pi, b, (ord("N") << 8) | ord("e"), (ord("w") << 8) | ord(" ")))
+    assert decoder.radio_text[0] == "N"
+    assert decoder.radio_text[1] == "e"
+    # Position 4+ must still be space: earlier "Hell" was cleared.
+    assert all(c == " " for c in decoder.radio_text[4:])
 
 
 def test_fmdemodulator_tracks_sample_index():

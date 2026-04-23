@@ -2030,7 +2030,6 @@ class RBDSDecoder:
         a, b, c, d = group_data
         changed = False
 
-        # Log raw block values for debugging - helps diagnose data extraction issues
         group_type = (b >> 12) & 0xF
         version_b = bool((b >> 11) & 0x1)
         logger.debug(
@@ -2053,20 +2052,22 @@ class RBDSDecoder:
             self.tp = tp
             changed = True
 
-        ta = bool((b >> 4) & 0x1)
-        if self.ta != ta:
-            self.ta = ta
-            changed = True
-
-        ms = bool((b >> 3) & 0x1)
-        if self.ms != ms:
-            self.ms = ms
-            changed = True
-
-        group_type = (b >> 12) & 0xF
-        version_b = bool((b >> 11) & 0x1)
-
+        # Bits 4-0 of Block B are group-type-dependent. TA (bit 4) and MS
+        # (bit 3) are only defined for Group 0A/0B; in other groups those
+        # bits carry unrelated payload (e.g. the RT A/B flag in Group 2,
+        # MJD time bits in Group 4A), so extracting them unconditionally
+        # would corrupt the flags each time a non-Group-0 group arrived.
         if group_type == 0:
+            ta = bool((b >> 4) & 0x1)
+            if self.ta != ta:
+                self.ta = ta
+                changed = True
+
+            ms = bool((b >> 3) & 0x1)
+            if self.ms != ms:
+                self.ms = ms
+                changed = True
+
             address = b & 0x3
             chars = d
             changed = self._update_ps_name(address, chars) or changed
@@ -2078,12 +2079,16 @@ class RBDSDecoder:
                 self.radio_text = [' '] * 64
                 changed = True
 
+            # RDS characters are 8-bit (Annex E of EN 50067 / Annex F of
+            # NRSC-4). Masking to 0x7F strips the high bit and silently
+            # corrupts anything in the upper half of the RDS character
+            # table; use a full byte to stay consistent with PS decoding.
             if not version_b:
                 blocks = (c, d)
                 for offset, block in enumerate(blocks):
                     chars = [
-                        (block >> 8) & 0x7F,
-                        block & 0x7F,
+                        (block >> 8) & 0xFF,
+                        block & 0xFF,
                     ]
                     for i, code in enumerate(chars):
                         idx = text_segment * 4 + offset * 2 + i
@@ -2091,7 +2096,7 @@ class RBDSDecoder:
                             if self._update_radio_text(idx, code):
                                 changed = True
             else:
-                chars = [(d >> 8) & 0x7F, d & 0x7F]
+                chars = [(d >> 8) & 0xFF, d & 0xFF]
                 for i, code in enumerate(chars):
                     idx = text_segment * 2 + i
                     if idx < len(self.radio_text):
