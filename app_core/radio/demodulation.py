@@ -2260,10 +2260,17 @@ class RBDSDecoder:
         )
 
     def _update_ps_name(self, address: int, chars: int) -> bool:
-        """Accept PS characters into the committed buffer only after two
-        consecutive identical reads at the same position. This debounces
-        the ~1-in-1024 uncorrectable CRC pass-throughs that would
-        otherwise briefly splash garbage onto the displayed PS."""
+        """Commit PS characters, debouncing only *replacements* of
+        already-displayed characters.
+
+        The 10-bit CRC lets through roughly 1-in-1024 uncorrectable
+        errors, so a glitch that passed CRC could replace a correct
+        character with garbage. Requiring two consecutive identical
+        reads before *overwriting* prevents that. But an empty slot
+        has no value to protect, so we fill it immediately — otherwise
+        a clean signal needlessly waits one extra PS cycle before any
+        station name appears.
+        """
         idx = address * 2
         updated = False
         for offset in range(2):
@@ -2272,11 +2279,22 @@ class RBDSDecoder:
             pos = idx + offset
             if pos >= len(self.ps_name):
                 continue
-            if self._ps_tentative[pos] == char:
-                if self.ps_name[pos] != char:
+            current = self.ps_name[pos]
+            if current == ' ':
+                # First observation at this slot: accept immediately.
+                if char != ' ':
                     self.ps_name[pos] = char
+                    self._ps_tentative[pos] = char
                     updated = True
+            elif current == char:
+                # Re-confirmation of the current value; keep tentative in sync.
+                self._ps_tentative[pos] = char
+            elif self._ps_tentative[pos] == char:
+                # Second consecutive read of a new value — commit the change.
+                self.ps_name[pos] = char
+                updated = True
             else:
+                # First read of a new value: stash it but don't display yet.
                 self._ps_tentative[pos] = char
         return updated
 
