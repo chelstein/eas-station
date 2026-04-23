@@ -931,6 +931,12 @@ function renderAudioSources(fullRender = true) {
                                             <span class="fw-bold">${escapeHtml(source.metrics.metadata.rbds_ps_name)}</span>
                                         </div>
                                     ` : ''}
+                                    ${source.metrics.metadata.rbds_call_sign ? `
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span class="text-muted">Call Letters:</span>
+                                            <span class="fw-bold">${escapeHtml(source.metrics.metadata.rbds_call_sign)}</span>
+                                        </div>
+                                    ` : ''}
                                     ${source.metrics.metadata.rbds_pi_code ? `
                                         <div class="d-flex justify-content-between mb-1">
                                             <span class="text-muted">Program ID (PI):</span>
@@ -944,6 +950,12 @@ function renderAudioSources(fullRender = true) {
                                                 ${source.metrics.metadata.rbds_program_type_name ? escapeHtml(source.metrics.metadata.rbds_program_type_name) : `PTY ${source.metrics.metadata.rbds_pty}`}
                                                 ${source.metrics.metadata.rbds_pty !== undefined && source.metrics.metadata.rbds_pty !== null ? `<span class="text-muted ms-1 font-monospace small">(${source.metrics.metadata.rbds_pty})</span>` : ''}
                                             </span>
+                                        </div>
+                                    ` : ''}
+                                    ${source.metrics.metadata.rbds_pty_name ? `
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span class="text-muted">Program Type Name (PTYN):</span>
+                                            <span>${escapeHtml(source.metrics.metadata.rbds_pty_name)}</span>
                                         </div>
                                     ` : ''}
                                     ${source.metrics.metadata.rbds_radio_text ? `
@@ -986,13 +998,59 @@ function renderAudioSources(fullRender = true) {
                                         <div class="d-flex justify-content-between mb-1">
                                             <span class="text-muted">Content Type (M/S):</span>
                                             <span>
-                                                ${source.metrics.metadata.rbds_ms ? 
-                                                    '<span class="badge bg-primary"><i class="fas fa-music"></i> Music</span>' : 
+                                                ${source.metrics.metadata.rbds_ms ?
+                                                    '<span class="badge bg-primary"><i class="fas fa-music"></i> Music</span>' :
                                                     '<span class="badge bg-info"><i class="fas fa-microphone"></i> Speech</span>'}
                                             </span>
                                         </div>
                                     ` : ''}
-                                    
+
+                                    ${(source.metrics.metadata.rbds_di_stereo !== undefined && source.metrics.metadata.rbds_di_stereo !== null) || (source.metrics.metadata.rbds_di_artificial_head !== undefined && source.metrics.metadata.rbds_di_artificial_head !== null) || (source.metrics.metadata.rbds_di_compressed !== undefined && source.metrics.metadata.rbds_di_compressed !== null) || (source.metrics.metadata.rbds_di_dynamic_pty !== undefined && source.metrics.metadata.rbds_di_dynamic_pty !== null) ? `
+                                        <hr class="my-2">
+                                        <div class="text-muted mb-1"><strong>Decoder Identification (DI)</strong></div>
+                                        ${source.metrics.metadata.rbds_di_stereo !== undefined && source.metrics.metadata.rbds_di_stereo !== null ? `
+                                            <div class="d-flex justify-content-between mb-1">
+                                                <span class="text-muted">Stereo:</span>
+                                                <span>${source.metrics.metadata.rbds_di_stereo ? '<span class="badge bg-primary">Stereo</span>' : '<span class="badge bg-secondary">Mono</span>'}</span>
+                                            </div>
+                                        ` : ''}
+                                        ${source.metrics.metadata.rbds_di_artificial_head !== undefined && source.metrics.metadata.rbds_di_artificial_head !== null ? `
+                                            <div class="d-flex justify-content-between mb-1">
+                                                <span class="text-muted">Artificial Head:</span>
+                                                <span>${source.metrics.metadata.rbds_di_artificial_head ? '<span class="badge bg-info">Yes</span>' : '<span class="badge bg-secondary">No</span>'}</span>
+                                            </div>
+                                        ` : ''}
+                                        ${source.metrics.metadata.rbds_di_compressed !== undefined && source.metrics.metadata.rbds_di_compressed !== null ? `
+                                            <div class="d-flex justify-content-between mb-1">
+                                                <span class="text-muted">Compressed Audio:</span>
+                                                <span>${source.metrics.metadata.rbds_di_compressed ? '<span class="badge bg-info">Yes</span>' : '<span class="badge bg-secondary">No</span>'}</span>
+                                            </div>
+                                        ` : ''}
+                                        ${source.metrics.metadata.rbds_di_dynamic_pty !== undefined && source.metrics.metadata.rbds_di_dynamic_pty !== null ? `
+                                            <div class="d-flex justify-content-between mb-1">
+                                                <span class="text-muted">Dynamic PTY:</span>
+                                                <span>${source.metrics.metadata.rbds_di_dynamic_pty ? '<span class="badge bg-info">Yes</span>' : '<span class="badge bg-secondary">Static</span>'}</span>
+                                            </div>
+                                        ` : ''}
+                                    ` : ''}
+
+                                    ${source.metrics.metadata.rbds_clock_time_local || source.metrics.metadata.rbds_clock_time_utc ? `
+                                        <hr class="my-2">
+                                        <div class="text-muted mb-1"><strong>Broadcast Clock (CT)</strong></div>
+                                        ${source.metrics.metadata.rbds_clock_time_local ? `
+                                            <div class="d-flex justify-content-between mb-1">
+                                                <span class="text-muted">Local:</span>
+                                                <span class="font-monospace small">${escapeHtml(source.metrics.metadata.rbds_clock_time_local)}</span>
+                                            </div>
+                                        ` : ''}
+                                        ${source.metrics.metadata.rbds_clock_time_utc ? `
+                                            <div class="d-flex justify-content-between mb-1">
+                                                <span class="text-muted">UTC:</span>
+                                                <span class="font-monospace small">${escapeHtml(source.metrics.metadata.rbds_clock_time_utc)}</span>
+                                            </div>
+                                        ` : ''}
+                                    ` : ''}
+
                                     ${source.metrics.metadata.rbds_last_updated ? `
                                         <hr class="my-2">
                                         <small class="text-muted">

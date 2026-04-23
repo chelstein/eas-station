@@ -458,10 +458,18 @@ class SDRSourceAdapter(AudioSourceAdapter):
                             metadata['rbds_ps_name'] = rbds_data.ps_name
                             metadata['rbds_radio_text'] = rbds_data.radio_text
                             metadata['rbds_pty'] = rbds_data.pty
+                            metadata['rbds_pty_name'] = rbds_data.pty_name
                             metadata['rbds_pi_code'] = rbds_data.pi_code
+                            metadata['rbds_call_sign'] = rbds_data.call_sign
                             metadata['rbds_tp'] = rbds_data.tp
                             metadata['rbds_ta'] = rbds_data.ta
                             metadata['rbds_ms'] = rbds_data.ms
+                            metadata['rbds_di_stereo'] = rbds_data.di_stereo
+                            metadata['rbds_di_artificial_head'] = rbds_data.di_artificial_head
+                            metadata['rbds_di_compressed'] = rbds_data.di_compressed
+                            metadata['rbds_di_dynamic_pty'] = rbds_data.di_dynamic_pty
+                            metadata['rbds_clock_time_utc'] = rbds_data.clock_time_utc
+                            metadata['rbds_clock_time_local'] = rbds_data.clock_time_local
                             metadata['rbds_program_type_name'] = (
                                 RBDS_PROGRAM_TYPES.get(int(rbds_data.pty))
                                 if rbds_data.pty is not None
@@ -473,10 +481,18 @@ class SDRSourceAdapter(AudioSourceAdapter):
                             metadata['rbds_ps_name'] = self._rbds_data.ps_name
                             metadata['rbds_radio_text'] = self._rbds_data.radio_text
                             metadata['rbds_pty'] = self._rbds_data.pty
+                            metadata['rbds_pty_name'] = self._rbds_data.pty_name
                             metadata['rbds_pi_code'] = self._rbds_data.pi_code
+                            metadata['rbds_call_sign'] = self._rbds_data.call_sign
                             metadata['rbds_tp'] = self._rbds_data.tp
                             metadata['rbds_ta'] = self._rbds_data.ta
                             metadata['rbds_ms'] = self._rbds_data.ms
+                            metadata['rbds_di_stereo'] = self._rbds_data.di_stereo
+                            metadata['rbds_di_artificial_head'] = self._rbds_data.di_artificial_head
+                            metadata['rbds_di_compressed'] = self._rbds_data.di_compressed
+                            metadata['rbds_di_dynamic_pty'] = self._rbds_data.di_dynamic_pty
+                            metadata['rbds_clock_time_utc'] = self._rbds_data.clock_time_utc
+                            metadata['rbds_clock_time_local'] = self._rbds_data.clock_time_local
                             metadata['rbds_program_type_name'] = (
                                 RBDS_PROGRAM_TYPES.get(int(self._rbds_data.pty))
                                 if self._rbds_data.pty is not None
