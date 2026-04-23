@@ -363,7 +363,7 @@ class RBDSWorker:
             self._rbds_bandpass = None
             logger.warning(
                 "RBDS: Sample rate %d Hz too low for 57 kHz subcarrier extraction (need >%d Hz). "
-                "RBDS decoding will not work.", 
+                "RBDS decoding will not work.",
                 self._sample_rate,
                 self.RBDS_MIN_SAMPLE_RATE
             )
@@ -371,6 +371,17 @@ class RBDSWorker:
         # Lowpass filter for post-mixing (removes aliases, keeps baseband RBDS at 0-7.5 kHz)
         # Design this at sample_rate since we mix BEFORE lowpass filtering
         self._rbds_lowpass = self._design_fir_lowpass(7500.0, self._sample_rate, taps=101)
+
+        # Filter delay-line state, preserved across _process_rbds calls. FIR
+        # filters implemented with np.convolve are stateless, so every chunk
+        # produced ~(N_taps - 1) samples of transient at its start. With
+        # 101-tap filters on 205-sample chunks the transient ate half the
+        # output, which looked like noise to the RBDS bit synchroniser. Using
+        # scipy.signal.lfilter with a persisted zi delay line eliminates the
+        # seam between consecutive chunks.
+        self._rbds_bandpass_zi: Optional[np.ndarray] = None
+        self._rbds_lowpass_zi_real: Optional[np.ndarray] = None
+        self._rbds_lowpass_zi_imag: Optional[np.ndarray] = None
 
         # CRITICAL: 19 kHz pilot extraction for phase-coherent demodulation
         # Redsea/GNU Radio architecture: Use pilot × 3 to generate 57 kHz carrier
@@ -701,8 +712,17 @@ class RBDSWorker:
 
         # Step 2: Bandpass filter to extract 57 kHz RBDS subcarrier (54-60 kHz)
         # CRITICAL: Do this BEFORE decimation that would remove the 57 kHz signal!
+        # Use lfilter with persisted state (zi) so the filter's delay line
+        # carries over from the previous chunk; np.convolve zeroes it every
+        # call, which produced (ntaps-1) samples of transient at the start of
+        # every chunk and flooded the bit-sync with garbage.
         if self._rbds_bandpass is not None and sample_rate >= self.RBDS_MIN_SAMPLE_RATE:
-            x = np.convolve(x, self._rbds_bandpass, mode='same')
+            from scipy import signal as scipy_signal
+            if self._rbds_bandpass_zi is None or len(self._rbds_bandpass_zi) != len(self._rbds_bandpass) - 1:
+                self._rbds_bandpass_zi = np.zeros(len(self._rbds_bandpass) - 1, dtype=x.dtype)
+            x, self._rbds_bandpass_zi = scipy_signal.lfilter(
+                self._rbds_bandpass, [1.0], x, zi=self._rbds_bandpass_zi
+            )
             time.sleep(0)  # Yield GIL
 
         # Step 3: Frequency shift to baseband using PILOT-DERIVED carrier
@@ -722,8 +742,22 @@ class RBDSWorker:
             self._carrier_phase_57k = (self._carrier_phase_57k + phase_increment * n) % (2.0 * np.pi)
         time.sleep(0)  # Yield GIL
 
-        # Step 3: Lowpass filter (7.5 kHz) to remove mixing artifacts and aliases
-        x = np.convolve(x, self._rbds_lowpass, mode='same')
+        # Step 3: Lowpass filter (7.5 kHz) to remove mixing artifacts and aliases.
+        # After the 57 kHz mix x is complex; lfilter keeps real delay lines per
+        # component, so filter the real and imaginary parts separately with
+        # their own persisted zi arrays.
+        from scipy import signal as scipy_signal
+        lp_state_len = len(self._rbds_lowpass) - 1
+        if self._rbds_lowpass_zi_real is None or len(self._rbds_lowpass_zi_real) != lp_state_len:
+            self._rbds_lowpass_zi_real = np.zeros(lp_state_len, dtype=np.float64)
+            self._rbds_lowpass_zi_imag = np.zeros(lp_state_len, dtype=np.float64)
+        real_out, self._rbds_lowpass_zi_real = scipy_signal.lfilter(
+            self._rbds_lowpass, [1.0], x.real, zi=self._rbds_lowpass_zi_real
+        )
+        imag_out, self._rbds_lowpass_zi_imag = scipy_signal.lfilter(
+            self._rbds_lowpass, [1.0], x.imag, zi=self._rbds_lowpass_zi_imag
+        )
+        x = real_out + 1j * imag_out
         time.sleep(0)  # Yield GIL
 
         # Step 4: Decimate to intermediate rate (~25 kHz) to reduce processing load
