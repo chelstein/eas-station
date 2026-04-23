@@ -281,14 +281,19 @@ def write_shared_metrics(metrics: Dict[str, Any]):
         # Sanitize metrics to remove inf/nan values before serialization
         metrics = _sanitize_for_json(metrics)
 
-        # Serialize nested dicts to JSON strings
-        # Redis hashes only support flat key-value pairs
+        # Serialize every value to JSON so round-trips preserve types.
+        # Redis hashes store strings only; redis-py stringifies other types
+        # via str(), which turns None/True/False into "None"/"True"/"False"
+        # — those read back as truthy non-empty strings in JS and produced
+        # phantom "Yes" badges and "None" labels in the audio monitor UI.
         flat_metrics = {}
         for key, value in metrics.items():
             if isinstance(value, (dict, list)):
                 flat_metrics[key] = json.dumps(value)
-            else:
+            elif isinstance(value, (str, bytes)):
                 flat_metrics[key] = value
+            else:
+                flat_metrics[key] = json.dumps(value)
 
         # Store in Redis hash with pipeline for atomicity
         pipe = r.pipeline()
@@ -338,22 +343,25 @@ def read_shared_metrics() -> Optional[Dict[str, Any]]:
         if not flat_metrics:
             return None
 
-        # Deserialize JSON strings back to dicts/lists
+        # Deserialize JSON back to the original types.  write_shared_metrics
+        # JSON-encodes every non-string value (dicts, lists, numbers, bools,
+        # None) so round-trips preserve types — without that, scalars like
+        # None were coming back as the literal string "None".
         metrics = {}
         for key, value in flat_metrics.items():
             # Decode bytes to string if needed (redis-py 7.x returns bytes)
             decoded_key = key.decode('utf-8') if isinstance(key, bytes) else key
             decoded_value = value.decode('utf-8') if isinstance(value, bytes) else value
 
-            # Skip empty values that would cause JSON parse errors
-            if not decoded_value:
+            if decoded_value == '':
                 continue
 
-            # Try to parse as JSON, fall back to raw value
-            if isinstance(decoded_value, str) and (decoded_value.startswith('{') or decoded_value.startswith('[')):
+            if isinstance(decoded_value, str):
                 try:
                     metrics[decoded_key] = json.loads(decoded_value)
                 except json.JSONDecodeError:
+                    # Legacy entries written before the type-preserving fix
+                    # are plain strings; keep them as-is.
                     metrics[decoded_key] = decoded_value
             else:
                 metrics[decoded_key] = decoded_value

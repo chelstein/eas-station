@@ -364,29 +364,38 @@ def test_decoder_di_bits_from_group_0():
     assert data.di_stereo is True         # address 3
 
 
-def test_ps_name_debounces_single_pass_corruption():
-    """A PS character should only commit after two consecutive identical reads.
+def test_ps_name_fills_empty_slots_immediately():
+    """Filling a still-blank PS slot must be instant — no debounce delay.
 
-    This catches the ~1-in-1024 rate at which the 10-bit CRC lets through
-    uncorrected errors. The first read of a position is tentative; it only
-    becomes visible once a second read confirms it.
+    There's no prior value worth protecting, and delaying the first
+    display by a whole PS cycle made time-to-first-station-name feel
+    noticeably slow on clean signals.
     """
     decoder = RBDSDecoder()
-
-    # Single spurious read at position 0, 1 -> should NOT appear in PS
     b = _pack_block_b(group_type=0, version_b=False, tp=False, pty=0, low_bits=0x00)
-    decoder.process_group((0x5862, b, 0x0000, (ord("X") << 8) | ord("Y")))
-    assert decoder.get_current_data().ps_name == ""
-
-    # Second identical read confirms it
     decoder.process_group((0x5862, b, 0x0000, (ord("X") << 8) | ord("Y")))
     assert decoder.get_current_data().ps_name == "XY"
 
-    # A different char at the same position should NOT immediately overwrite
+
+def test_ps_name_debounces_replacements():
+    """Once a slot is displayed, a single conflicting read must NOT
+    overwrite it; replacement requires two consecutive identical reads.
+
+    This is the rare case (~1-in-1024 per block) where an uncorrected
+    CRC pass-through would flash a wrong character; we don't want that
+    visible.
+    """
+    decoder = RBDSDecoder()
+    b = _pack_block_b(group_type=0, version_b=False, tp=False, pty=0, low_bits=0x00)
+    # Fill the slot with "XY"
+    decoder.process_group((0x5862, b, 0x0000, (ord("X") << 8) | ord("Y")))
+    assert decoder.get_current_data().ps_name == "XY"
+
+    # Single spurious read of "Z" must NOT replace X
     decoder.process_group((0x5862, b, 0x0000, (ord("Z") << 8) | ord("Y")))
     assert decoder.get_current_data().ps_name == "XY"
 
-    # But two consecutive 'Z' reads do overwrite
+    # Second consecutive "Z" confirms the change
     decoder.process_group((0x5862, b, 0x0000, (ord("Z") << 8) | ord("Y")))
     assert decoder.get_current_data().ps_name == "ZY"
 
