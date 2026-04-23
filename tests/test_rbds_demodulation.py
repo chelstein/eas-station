@@ -377,27 +377,58 @@ def test_ps_name_fills_empty_slots_immediately():
     assert decoder.get_current_data().ps_name == "XY"
 
 
-def test_ps_name_debounces_replacements():
-    """Once a slot is displayed, a single conflicting read must NOT
-    overwrite it; replacement requires two consecutive identical reads.
+def test_ps_name_follows_dynamic_ps_rotation():
+    """Dynamic PS (rotating through multiple 8-char strings) must be
+    reflected immediately, not stuck on whatever committed first.
 
-    This is the rare case (~1-in-1024 per block) where an uncorrected
-    CRC pass-through would flash a wrong character; we don't want that
-    visible.
+    Many US CHR stations alternate PS among 'KISS-FM ', 'Your-FM ',
+    slogans, song titles, etc. A prior version of the decoder required
+    two consecutive identical reads to commit a change, which meant an
+    A→B→A→B rotation's tentative buffer kept flipping and never
+    confirmed either — the displayed PS froze on the first value seen.
     """
     decoder = RBDSDecoder()
     b = _pack_block_b(group_type=0, version_b=False, tp=False, pty=0, low_bits=0x00)
-    # Fill the slot with "XY"
-    decoder.process_group((0x5862, b, 0x0000, (ord("X") << 8) | ord("Y")))
-    assert decoder.get_current_data().ps_name == "XY"
+    # Initial commit
+    decoder.process_group((0x5862, b, 0x0000, (ord("Y") << 8) | ord("o")))
+    assert decoder.ps_name[0] == "Y"
+    # Station rotates to a different PS — must update on first read
+    decoder.process_group((0x5862, b, 0x0000, (ord("K") << 8) | ord("I")))
+    assert decoder.ps_name[0] == "K", f"rotation blocked: {decoder.ps_name[0]}"
+    # Rotate back — also immediate
+    decoder.process_group((0x5862, b, 0x0000, (ord("Y") << 8) | ord("o")))
+    assert decoder.ps_name[0] == "Y"
 
-    # Single spurious read of "Z" must NOT replace X
-    decoder.process_group((0x5862, b, 0x0000, (ord("Z") << 8) | ord("Y")))
-    assert decoder.get_current_data().ps_name == "XY"
 
-    # Second consecutive "Z" confirms the change
-    decoder.process_group((0x5862, b, 0x0000, (ord("Z") << 8) | ord("Y")))
-    assert decoder.get_current_data().ps_name == "ZY"
+def test_radio_text_grows_when_station_extends_without_cr():
+    """Some stations change their RT without re-sending 0x0D or toggling
+    the A/B flag; the decoder must let the visible length grow back out
+    when non-space characters arrive past the current terminator.
+    """
+    decoder = RBDSDecoder()
+    b0 = _pack_block_b(group_type=2, version_b=False, tp=False, pty=0, low_bits=0x00)
+    # Initial RT: "Hi!\r"  → terminator at 3
+    decoder.process_group((0x5862, b0, (ord("H") << 8) | ord("i"), (ord("!") << 8) | 0x0D))
+    assert decoder.get_current_data().radio_text == "Hi!"
+
+    # Station re-broadcasts segment 0 with a space in place of the CR,
+    # then fills segment 1 with "Worl" — the RT should grow back out.
+    decoder.process_group((0x5862, b0, (ord("H") << 8) | ord("i"), (ord("!") << 8) | ord(" ")))
+    b1 = _pack_block_b(group_type=2, version_b=False, tp=False, pty=0, low_bits=0x01)
+    decoder.process_group((0x5862, b1, (ord("W") << 8) | ord("o"), (ord("r") << 8) | ord("l")))
+    assert decoder.get_current_data().radio_text == "Hi! Worl"
+
+
+def test_radio_text_drops_padding_past_terminator():
+    """Spaces (padding) arriving in a later segment past a terminator
+    must not extend the RT — only real non-space content should.
+    """
+    decoder = RBDSDecoder()
+    b0 = _pack_block_b(group_type=2, version_b=False, tp=False, pty=0, low_bits=0x00)
+    decoder.process_group((0x5862, b0, (ord("H") << 8) | ord("i"), (ord("!") << 8) | 0x0D))
+    b1 = _pack_block_b(group_type=2, version_b=False, tp=False, pty=0, low_bits=0x01)
+    decoder.process_group((0x5862, b1, (ord(" ") << 8) | ord(" "), (ord(" ") << 8) | ord(" ")))
+    assert decoder.get_current_data().radio_text == "Hi!"
 
 
 def test_radio_text_trims_at_carriage_return():
