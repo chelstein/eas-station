@@ -122,6 +122,12 @@
             mode: 'dark',
             description: 'Blue-gray professional dark theme',
             builtin: true
+        },
+        'lightning': {
+            name: 'Lightning',
+            mode: 'dark',
+            description: 'Stormcloud sky with electric-yellow bolts and arc-blue plasma',
+            builtin: true
         }
     };
 
