@@ -41,6 +41,18 @@ logger = logging.getLogger(__name__)
 # Try to import Numba for JIT compilation of hot DSP functions
 # Falls back to pure NumPy if Numba is not available
 _NUMBA_AVAILABLE = False
+# Numba's internal byteflow/SSA/interpreter passes log at DEBUG, and each
+# JIT compile emits *megabytes* of those lines. On an RPi-class box the
+# synchronous journald writes alone add real latency to the audio thread,
+# and the root logger is typically at DEBUG during development. Pin every
+# numba sub-logger to WARNING so compile-time chatter can't leak through
+# regardless of the process-wide log level.
+for _numba_logger_name in ('numba', 'numba.core', 'numba.core.ssa',
+                           'numba.core.byteflow', 'numba.core.interpreter',
+                           'numba.core.typeinfer', 'numba.core.compiler',
+                           'llvmlite'):
+    logging.getLogger(_numba_logger_name).setLevel(logging.WARNING)
+
 try:
     from numba import jit, prange
     _NUMBA_AVAILABLE = True
