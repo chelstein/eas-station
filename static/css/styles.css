@@ -907,6 +907,68 @@
     color: #0d1b2a;
 }
 
+/* Lightning Theme - .bg-light surfaces
+   --light-color resolves to pale yellow (#fff9c4) in this theme. Components
+   that declare their own text color (.metric-value, .metric-label, etc.)
+   beat the low-specificity `.bg-light * { color: inherit }` rule and render
+   cream-on-yellow, which is unreadable. Force dark text on any descendant
+   of a .bg-light region so those overrides lose. */
+[data-theme="lightning"] .bg-light,
+[data-theme="lightning"] .bg-light *,
+[data-theme="lightning"] .card-header.bg-light,
+[data-theme="lightning"] .card-header.bg-light * {
+    color: #0d1b2a !important;
+    text-shadow: none;
+}
+
+[data-theme="lightning"] .bg-light .text-muted,
+[data-theme="lightning"] .card-header.bg-light .text-muted {
+    color: #3a4d7a !important;
+}
+
+/* Lightning Theme - Navbar opacity
+   The default navbar mixes its gradient with 15-20% transparency. Combined
+   with the bright yellow body gradient of this theme, page content scrolls
+   visibly through the sticky navbar. Opaque gradient + stronger shadow
+   keeps the header readable. */
+[data-theme="lightning"] .navbar {
+    background: linear-gradient(135deg,
+        #1a2342 0%,
+        #2a1f4a 50%,
+        #162848 100%) !important;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border-bottom: 1px solid rgba(255, 235, 59, 0.25);
+}
+
+[data-theme="lightning"] .navbar.scrolled {
+    background: linear-gradient(135deg,
+        #141c38 0%,
+        #241a42 50%,
+        #10203e 100%) !important;
+}
+
+/* Lightning Theme - Footer palette
+   Default footer fades from --primary-color (yellow) to --secondary-color
+   (cyan), producing a large saturated yellow band at the bottom of every
+   page. Replace with a deep-storm gradient so the footer reads as part of
+   the night sky instead of a giant highlight block. */
+[data-theme="lightning"] footer {
+    background: linear-gradient(135deg,
+        #0a1128 0%,
+        #132047 50%,
+        #0a1128 100%);
+    color: var(--text-color);
+}
+
+[data-theme="lightning"] footer a {
+    color: rgba(255, 253, 231, 0.85);
+}
+
+[data-theme="lightning"] footer a:hover {
+    color: var(--primary-color);
+}
+
 /* Lightning Theme - Atmospheric storm overlay.
    static/js/core/lightning.js drives the timing and injects fresh SVG bolts
    per strike. The CSS here does the heavy lifting for the *look*: stacked
