@@ -2138,11 +2138,7 @@ class RBDSDecoder:
         self.clock_time_utc = None
         self.clock_time_local = None
         self._radio_text_ab = 0
-        # PS debounce: the 10-bit CRC lets through roughly 1-in-1024
-        # uncorrectable errors, so a single-pass accept occasionally
-        # flashes garbage. Only commit a PS character after seeing the
-        # same value at the same position in two consecutive broadcasts.
-        self._ps_tentative = [' '] * 8
+        self._rt_saw_cr_this_group = False
 
     def process_group(self, group_data: Tuple[int, int, int, int]) -> Optional[bool]:
         """
@@ -2220,7 +2216,13 @@ class RBDSDecoder:
             if ab_flag != self._radio_text_ab:
                 self._radio_text_ab = ab_flag
                 self.radio_text = [' '] * 64
+                self._radio_text_len = 64
                 changed = True
+            # Within this single group, any chars arriving after a 0x0D are
+            # the padding that fills the final segment. Track it so
+            # _update_radio_text can reject those without mistaking them
+            # for the station extending its RT in a later broadcast.
+            self._rt_saw_cr_this_group = False
 
             # RDS characters are 8-bit (Annex E of EN 50067 / Annex F of
             # NRSC-4). Masking to 0x7F strips the high bit and silently
@@ -2306,16 +2308,20 @@ class RBDSDecoder:
         )
 
     def _update_ps_name(self, address: int, chars: int) -> bool:
-        """Commit PS characters, debouncing only *replacements* of
-        already-displayed characters.
+        """Accept PS characters on first read.
 
-        The 10-bit CRC lets through roughly 1-in-1024 uncorrectable
-        errors, so a glitch that passed CRC could replace a correct
-        character with garbage. Requiring two consecutive identical
-        reads before *overwriting* prevents that. But an empty slot
-        has no value to protect, so we fill it immediately — otherwise
-        a clean signal needlessly waits one extra PS cycle before any
-        station name appears.
+        An earlier version required two consecutive identical reads to
+        overwrite a committed slot, as protection against CRC
+        pass-throughs (~1-in-1024 rate). But many US stations broadcast
+        *dynamic PS* that rotates among several 8-character strings
+        ("KISS-FM ", "Your-FM ", "103-5   ", a song title, a slogan).
+        Each rotation read differed from the previous tentative, so the
+        debounce never confirmed any of them — the displayed PS got
+        frozen at whatever happened to commit first (often from an
+        unstable early read) and never updated again. Accepting each
+        read immediately means the PS follows the rotation; the worst
+        case is a single-character flicker for one cycle if a block
+        happens to pass CRC despite corruption.
         """
         idx = address * 2
         updated = False
@@ -2325,40 +2331,33 @@ class RBDSDecoder:
             pos = idx + offset
             if pos >= len(self.ps_name):
                 continue
-            current = self.ps_name[pos]
-            if current == ' ':
-                # First observation at this slot: accept immediately.
-                if char != ' ':
-                    self.ps_name[pos] = char
-                    self._ps_tentative[pos] = char
-                    updated = True
-            elif current == char:
-                # Re-confirmation of the current value; keep tentative in sync.
-                self._ps_tentative[pos] = char
-            elif self._ps_tentative[pos] == char:
-                # Second consecutive read of a new value — commit the change.
+            if self.ps_name[pos] != char:
                 self.ps_name[pos] = char
                 updated = True
-            else:
-                # First read of a new value: stash it but don't display yet.
-                self._ps_tentative[pos] = char
         return updated
 
     def _update_radio_text(self, index: int, code: int) -> bool:
         if index >= len(self.radio_text):
             return False
-        # RDS spec: 0x0D (carriage return) terminates the Radio Text and
-        # everything beyond it is padding to fill out the final segment.
+        # RDS spec: 0x0D (carriage return) terminates the Radio Text.
+        # Everything that follows 0x0D *within the same group* is padding.
         if code == 0x0D:
+            self._rt_saw_cr_this_group = True
             if self._radio_text_len > index:
                 self._radio_text_len = index
                 return True
             return False
-        # Drop characters past a previously-seen terminator: they are
-        # padding and must not appear in the displayed text.
-        if index >= self._radio_text_len:
+        # Post-CR characters in this same group are padding → drop.
+        if self._rt_saw_cr_this_group and index >= self._radio_text_len:
             return False
         char = chr(code) if 32 <= code < 127 else ' '
+        # A later group writing past the current terminator with a
+        # non-space character means the station extended its RT without
+        # re-sending the terminator — push the visible length back out.
+        if index >= self._radio_text_len:
+            if char == ' ':
+                return False
+            self._radio_text_len = min(64, index + 1)
         if self.radio_text[index] != char:
             self.radio_text[index] = char
             return True
