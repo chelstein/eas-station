@@ -2139,6 +2139,25 @@ class RBDSDecoder:
         self.clock_time_local = None
         self._radio_text_ab = 0
         self._rt_saw_cr_this_group = False
+        # Dynamic-PS cycle assembly. Stations that rotate multiple
+        # 8-char PS strings send them one after another in complete
+        # cycles of 4 segments (addresses 0..3). To avoid displaying
+        # Frankenstein blends of two strings, accumulate segments into
+        # a staging buffer and only copy to the visible ps_name once a
+        # full self-consistent cycle has been observed. If a segment
+        # contradicts a previously-seen address in the current cycle,
+        # the station has begun a new PS and we discard the stale
+        # staging data and start over with the new content.
+        self._ps_pending = [' '] * 8
+        self._ps_pending_mask = 0
+        # Candidate PS (last *fully observed* cycle) and how many times
+        # it has repeated. A candidate only promotes to ps_name after
+        # being observed twice in a row, which prevents Frankenstein
+        # blends (one segment from string A + one from string B
+        # interleaving across four unique addresses would otherwise
+        # look like a valid cycle).
+        self._ps_candidate = None  # type: Optional[str]
+        self._ps_candidate_count = 0
 
     def process_group(self, group_data: Tuple[int, int, int, int]) -> Optional[bool]:
         """
@@ -2308,31 +2327,70 @@ class RBDSDecoder:
         )
 
     def _update_ps_name(self, address: int, chars: int) -> bool:
-        """Accept PS characters on first read.
+        """Stage PS segments into a pending buffer, display once a full
+        4-segment cycle has been observed as self-consistent.
 
-        An earlier version required two consecutive identical reads to
-        overwrite a committed slot, as protection against CRC
-        pass-throughs (~1-in-1024 rate). But many US stations broadcast
-        *dynamic PS* that rotates among several 8-character strings
-        ("KISS-FM ", "Your-FM ", "103-5   ", a song title, a slogan).
-        Each rotation read differed from the previous tentative, so the
-        debounce never confirmed any of them — the displayed PS got
-        frozen at whatever happened to commit first (often from an
-        unstable early read) and never updated again. Accepting each
-        read immediately means the PS follows the rotation; the worst
-        case is a single-character flicker for one cycle if a block
-        happens to pass CRC despite corruption.
+        Stations that broadcast *dynamic PS* rotate through multiple
+        8-char strings ("KISS-FM ", station slogan, song title, ...) by
+        sending each one as a complete cycle of four segments (address
+        0..3). If we committed each segment the moment it arrived, the
+        displayed PS would blend bytes from two different strings
+        whenever segments from different rotation slots interleaved —
+        "93.9 FM " and "Kiss-FM " can end up rendered as "93si-FM ".
+
+        Approach: keep a pending 8-char buffer and a 4-bit 'segments
+        seen' mask. When a new segment arrives at an address that was
+        already set in the current cycle:
+          - If its content matches what we already staged → keep going.
+          - Otherwise → the station started broadcasting a new PS;
+            discard staging and restart with just this segment.
+        When all four segments of a single cycle have been seen
+        consistently, copy pending to the visible ps_name.
         """
         idx = address * 2
+        chars_pair = [
+            chr((chars >> 8) & 0xFF) if 32 <= ((chars >> 8) & 0xFF) < 127 else ' ',
+            chr(chars & 0xFF) if 32 <= (chars & 0xFF) < 127 else ' ',
+        ]
+        bit = 1 << address
+        if self._ps_pending_mask & bit:
+            # Already staged this segment in the current cycle — is it
+            # still the same string?
+            if (self._ps_pending[idx] != chars_pair[0] or
+                    self._ps_pending[idx + 1] != chars_pair[1]):
+                # Station has started broadcasting a different PS.
+                # Discard staging and restart with just this segment.
+                self._ps_pending = [' '] * 8
+                self._ps_pending_mask = 0
+        self._ps_pending[idx] = chars_pair[0]
+        self._ps_pending[idx + 1] = chars_pair[1]
+        self._ps_pending_mask |= bit
+
+        if self._ps_pending_mask != 0xF:
+            return False
+        # A full cycle has been observed. Don't promote yet — require a
+        # second identical cycle to commit, which filters out blended
+        # mixes of two different rotation strings (the four segments
+        # from A and B can interleave without conflict because each
+        # address appears only once per cycle, so "no conflict" alone
+        # isn't enough evidence that the 8 chars all came from the
+        # same PS string).
+        candidate = ''.join(self._ps_pending)
+        if candidate == self._ps_candidate:
+            self._ps_candidate_count += 1
+        else:
+            self._ps_candidate = candidate
+            self._ps_candidate_count = 1
+        # Start a fresh pending cycle for the next 4 segments.
+        self._ps_pending = [' '] * 8
+        self._ps_pending_mask = 0
+        if self._ps_candidate_count < 2:
+            return False
+        # Two consecutive identical cycles — promote to the visible PS.
         updated = False
-        for offset in range(2):
-            char_code = (chars >> (8 * (1 - offset))) & 0xFF
-            char = chr(char_code) if 32 <= char_code < 127 else ' '
-            pos = idx + offset
-            if pos >= len(self.ps_name):
-                continue
-            if self.ps_name[pos] != char:
-                self.ps_name[pos] = char
+        for i, ch in enumerate(candidate):
+            if self.ps_name[i] != ch:
+                self.ps_name[i] = ch
                 updated = True
         return updated
 
@@ -2351,13 +2409,16 @@ class RBDSDecoder:
         if self._rt_saw_cr_this_group and index >= self._radio_text_len:
             return False
         char = chr(code) if 32 <= code < 127 else ' '
-        # A later group writing past the current terminator with a
-        # non-space character means the station extended its RT without
-        # re-sending the terminator — push the visible length back out.
+        # Characters past the current terminator are padding by default.
+        # An earlier pass extended the length on any non-space byte, but
+        # that let a single CRC-lucky garbage byte drag trailing junk
+        # into the displayed RT ("93.9 KISS-FM ... )["). Always drop
+        # past-terminator writes — when the station changes RT it should
+        # toggle the A/B flag (which clears everything) or re-send a
+        # later CR (which moves the terminator accordingly). This is
+        # conservative but matches how car receivers behave.
         if index >= self._radio_text_len:
-            if char == ' ':
-                return False
-            self._radio_text_len = min(64, index + 1)
+            return False
         if self.radio_text[index] != char:
             self.radio_text[index] = char
             return True

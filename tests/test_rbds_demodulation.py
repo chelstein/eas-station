@@ -181,16 +181,20 @@ def test_group_0a_decodes_ta_ms_and_ps():
 
     # segment 0, TA=1, MS=1, DI=0 → low 5 bits = 0b11000 = 0x18
     b = _pack_block_b(group_type=0, version_b=False, tp=True, pty=5, low_bits=0x18)
-    # block D carries the two PS chars "EA"
     decoder.process_group((pi, b, 0x0000, (ord("E") << 8) | ord("A")))
 
+    # The flags read from any Group 0 land immediately.
     data = decoder.get_current_data()
     assert data.pi_code == "4FB5"
     assert data.pty == 5
     assert data.tp is True
     assert data.ta is True
     assert data.ms is True
-    assert data.ps_name.startswith("EA")
+
+    # PS only commits after a full self-consistent cycle has been
+    # confirmed twice (see test_ps_name_requires_two_identical_cycles),
+    # so after a single segment the visible PS is still blank.
+    assert data.ps_name == ""
 
 
 def test_group_2_does_not_clobber_ta_ms():
@@ -364,40 +368,64 @@ def test_decoder_di_bits_from_group_0():
     assert data.di_stereo is True         # address 3
 
 
-def test_ps_name_fills_empty_slots_immediately():
-    """Filling a still-blank PS slot must be instant — no debounce delay.
+def _send_ps_cycle(decoder, text: str, pi: int = 0x5862) -> None:
+    """Send a complete PS cycle (all 4 segments of an 8-char PS)."""
+    assert len(text) == 8
+    for seg in range(4):
+        b = _pack_block_b(group_type=0, version_b=False, tp=False, pty=0, low_bits=seg)
+        c1, c2 = text[seg * 2], text[seg * 2 + 1]
+        decoder.process_group((pi, b, 0x0000, (ord(c1) << 8) | ord(c2)))
 
-    There's no prior value worth protecting, and delaying the first
-    display by a whole PS cycle made time-to-first-station-name feel
-    noticeably slow on clean signals.
+
+def test_ps_name_requires_two_identical_cycles():
+    """PS commits only after two consecutive identical full cycles.
+
+    This debounces the 'Frankenstein blend' failure mode where four
+    segments from two different rotating PS strings interleave across
+    four distinct addresses (no per-segment conflict to catch) and
+    spell out 8 chars that were never broadcast together.
     """
     decoder = RBDSDecoder()
-    b = _pack_block_b(group_type=0, version_b=False, tp=False, pty=0, low_bits=0x00)
-    decoder.process_group((0x5862, b, 0x0000, (ord("X") << 8) | ord("Y")))
-    assert decoder.get_current_data().ps_name == "XY"
+    _send_ps_cycle(decoder, "KISS-FM ")
+    assert "".join(decoder.ps_name) == " " * 8, "first cycle must not commit"
+    _send_ps_cycle(decoder, "KISS-FM ")
+    assert "".join(decoder.ps_name) == "KISS-FM "
 
 
 def test_ps_name_follows_dynamic_ps_rotation():
-    """Dynamic PS (rotating through multiple 8-char strings) must be
-    reflected immediately, not stuck on whatever committed first.
+    """Rotating PS transitions cleanly once each new string repeats."""
+    decoder = RBDSDecoder()
+    for _ in range(2):
+        _send_ps_cycle(decoder, "KISS-FM ")
+    assert "".join(decoder.ps_name) == "KISS-FM "
 
-    Many US CHR stations alternate PS among 'KISS-FM ', 'Your-FM ',
-    slogans, song titles, etc. A prior version of the decoder required
-    two consecutive identical reads to commit a change, which meant an
-    A→B→A→B rotation's tentative buffer kept flipping and never
-    confirmed either — the displayed PS froze on the first value seen.
+    # One rotation to a different string doesn't update yet — candidate
+    # needs confirmation.
+    _send_ps_cycle(decoder, "93-9 FM ")
+    assert "".join(decoder.ps_name) == "KISS-FM "
+    # The station's next cycle of '93-9 FM ' confirms it.
+    _send_ps_cycle(decoder, "93-9 FM ")
+    assert "".join(decoder.ps_name) == "93-9 FM "
+
+
+def test_ps_name_rejects_single_blended_cycle():
+    """A single cycle built from segments of two different PS strings
+    must not commit — the four-address blend could decode any plausible
+    8 chars and would corrupt the display.
     """
     decoder = RBDSDecoder()
-    b = _pack_block_b(group_type=0, version_b=False, tp=False, pty=0, low_bits=0x00)
-    # Initial commit
-    decoder.process_group((0x5862, b, 0x0000, (ord("Y") << 8) | ord("o")))
-    assert decoder.ps_name[0] == "Y"
-    # Station rotates to a different PS — must update on first read
-    decoder.process_group((0x5862, b, 0x0000, (ord("K") << 8) | ord("I")))
-    assert decoder.ps_name[0] == "K", f"rotation blocked: {decoder.ps_name[0]}"
-    # Rotate back — also immediate
-    decoder.process_group((0x5862, b, 0x0000, (ord("Y") << 8) | ord("o")))
-    assert decoder.ps_name[0] == "Y"
+    for _ in range(2):
+        _send_ps_cycle(decoder, "KISS-FM ")
+    assert "".join(decoder.ps_name) == "KISS-FM "
+
+    # One cycle's worth of segments, each drawn from a different PS.
+    # "K", "I" from 'KISS-FM ', "-", "9" from '93-9 FM ', " ", "F"
+    # from '93-9 FM ', "M", " " from 'KISS-FM '.
+    for seg, pair in enumerate([("K", "I"), ("-", "9"), (" ", "F"), ("M", " ")]):
+        b = _pack_block_b(group_type=0, version_b=False, tp=False, pty=0, low_bits=seg)
+        decoder.process_group((0x5862, b, 0x0000, (ord(pair[0]) << 8) | ord(pair[1])))
+    assert "".join(decoder.ps_name) == "KISS-FM ", \
+        f"blended cycle committed: {decoder.ps_name}"
 
 
 def test_radio_text_grows_when_station_extends_without_cr():

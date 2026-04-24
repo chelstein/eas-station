@@ -1051,11 +1051,18 @@ function renderAudioSources(fullRender = true) {
                                         ` : ''}
                                     ` : ''}
 
-                                    ${source.metrics.metadata.rbds_last_updated ? `
+                                    ${(source.metrics.metadata.rbds_last_updated || source.metrics.metadata.rbds_last_seen) ? `
                                         <hr class="my-2">
-                                        <small class="text-muted">
-                                            <i class="fas fa-clock"></i> Last updated: ${new Date(source.metrics.metadata.rbds_last_updated * 1000).toLocaleTimeString()}
-                                        </small>
+                                        ${source.metrics.metadata.rbds_last_seen ? `
+                                            <small class="text-muted d-block">
+                                                <i class="fas fa-satellite-dish"></i> Decoder last saw a group: ${new Date(source.metrics.metadata.rbds_last_seen * 1000).toLocaleTimeString()}
+                                            </small>
+                                        ` : ''}
+                                        ${source.metrics.metadata.rbds_last_updated ? `
+                                            <small class="text-muted d-block">
+                                                <i class="fas fa-clock"></i> Content last changed: ${new Date(source.metrics.metadata.rbds_last_updated * 1000).toLocaleTimeString()}
+                                            </small>
+                                        ` : ''}
                                     ` : ''}
                                 </div>
                             </div>
