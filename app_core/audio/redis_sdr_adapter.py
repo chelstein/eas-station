@@ -504,9 +504,18 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
                     self.metrics.metadata['rbds_di_dynamic_pty'] = rbds.di_dynamic_pty
                     self.metrics.metadata['rbds_clock_time_utc'] = rbds.clock_time_utc
                     self.metrics.metadata['rbds_clock_time_local'] = rbds.clock_time_local
-                    # Only bump timestamp when the decoded content actually changed
+                    # rbds_last_seen advances every time we observe a decoded
+                    # group, even if the content is identical to the last one.
+                    # This is the "decoder is alive" heartbeat: it lets the
+                    # UI distinguish "station is just playing stable content"
+                    # from "sync died and we're showing stale data".
+                    now = time.time()
+                    self.metrics.metadata['rbds_last_seen'] = now
+                    # rbds_last_updated only advances when decoded content
+                    # actually changes — this is the "content freshness" time
+                    # the user cares about for RT / PS rotation.
                     if signature != self._rbds_signature:
-                        self.metrics.metadata['rbds_last_updated'] = time.time()
+                        self.metrics.metadata['rbds_last_updated'] = now
                         self._rbds_signature = signature
                         logger.debug(
                             f"RBDS data updated: PS={rbds.ps_name}, "
