@@ -844,13 +844,13 @@
     --light-color: #fff9c4;
     --dark-color: #0d1b2a;
     --bg-color: #0a1128;
-    --surface-color: #111d3d;
-    --bg-card: #18264d;
+    --surface-color: #132047;
+    --bg-card: #1b2c57;
     --bg-primary: #1b2a4e;
     --text-color: #fffde7;
-    --text-secondary: #e3f2fd;
-    --text-muted: #9fa8b8;
-    --border-color: #2d3e66;
+    --text-secondary: #e6f2ff;
+    --text-muted: #c2cde0;
+    --border-color: #3a4d7a;
     --shadow-color: rgba(255, 235, 59, 0.25);
 }
 
@@ -879,9 +879,69 @@
     }
 }
 
+/* Lightning Theme - Readability overrides
+   The primary (#ffeb3b) and info/secondary (#40c4ff) colors are very light,
+   so white text on those backgrounds fails contrast. Force dark text there. */
+[data-theme="lightning"] .bg-primary,
+[data-theme="lightning"] .text-bg-primary,
+[data-theme="lightning"] .badge.bg-primary,
+[data-theme="lightning"] .card-header.bg-primary,
+[data-theme="lightning"] .bg-info,
+[data-theme="lightning"] .text-bg-info,
+[data-theme="lightning"] .badge.bg-info,
+[data-theme="lightning"] .card-header.bg-info,
+[data-theme="lightning"] .bg-secondary,
+[data-theme="lightning"] .text-bg-secondary,
+[data-theme="lightning"] .badge.bg-secondary,
+[data-theme="lightning"] .card-header.bg-secondary {
+    color: #0d1b2a !important;
+    text-shadow: none;
+}
+
+[data-theme="lightning"] .table thead th {
+    color: #0d1b2a;
+    text-shadow: none;
+}
+
+[data-theme="lightning"] .btn-primary {
+    color: #0d1b2a;
+}
+
+/* Lightning Theme - Subtle lightning strokes along the edges.
+   Uses a thin SVG with faint bolts that briefly flicker at long intervals
+   so the effect reads as a distant storm, not a full-screen flash. */
+[data-theme="lightning"] body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 800' preserveAspectRatio='xMidYMid slice'><g fill='none' stroke='%23b3e5ff' stroke-width='2.6' stroke-linejoin='round' stroke-linecap='round' opacity='0.55'><path d='M80 -10 L100 130 L72 148 L118 290 L88 320 L140 520 L110 560 L150 780'/><path d='M1130 -10 L1108 120 L1140 140 L1092 300 L1128 332 L1078 520 L1116 560 L1068 780'/></g><g fill='none' stroke='%23ffffff' stroke-width='1.1' stroke-linejoin='round' stroke-linecap='round' opacity='0.98'><path d='M80 -10 L100 130 L72 148 L118 290 L88 320 L140 520 L110 560 L150 780'/><path d='M1130 -10 L1108 120 L1140 140 L1092 300 L1128 332 L1078 520 L1116 560 L1068 780'/></g></svg>");
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    opacity: 0;
+    animation: lightningStrike 14s ease-in-out infinite;
+}
+
+@keyframes lightningStrike {
+    0%, 12%, 100%       { opacity: 0; }
+    12.2%               { opacity: 0.55; }
+    12.6%               { opacity: 0.1; }
+    13%                 { opacity: 0.65; }
+    13.6%               { opacity: 0; }
+    62%                 { opacity: 0; }
+    62.2%               { opacity: 0.5; }
+    62.8%               { opacity: 0; }
+}
+
 @media (prefers-reduced-motion: reduce) {
     [data-theme="lightning"] .fa-bolt {
         animation: none;
+    }
+    [data-theme="lightning"] body::before {
+        animation: none;
+        opacity: 0;
     }
 }
 
