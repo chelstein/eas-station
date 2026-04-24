@@ -22,13 +22,19 @@ from __future__ import annotations
 """Social media image export for alert details.
 
 Generates a Facebook-ready 1200×630 PNG for a given CAP alert containing:
+- A stormy-sky header with procedural lightning bolts (same visual
+  language as the site's lightning theme), the event name, and severity
 - Static OpenStreetMap tile background with the alert polygon drawn on top
-- Storm threat badges (tornado, wind, hail)
-- County coverage percentage with a progress bar
-- Service-boundary counts (fire, EMS, electric, …)
-- VTAC string and storm-motion summary
-- Affected area description
+- Storm threat badges (tornado, wind, hail) when present
+- NWS headline, affected areas, description, and safety instructions —
+  the priority sections for a share card, sized to fill the available
+  space rather than being clipped at an arbitrary line count
+- County coverage and storm-motion summary when space remains
 - Alert header and footer with timing info
+
+Operator-only fields (VTAC strings, issuing-office block) are
+intentionally omitted — they're technical noise for social sharing and
+previously crowded out the readable copy.
 
 The map tile layer is fetched live from OpenStreetMap.  If tiles are
 unavailable (network timeout, offline environment, …) the map area is
@@ -43,11 +49,12 @@ Usage::
 import io
 import json
 import math
+import random
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests as _http
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 # ─── Canvas dimensions (Facebook recommended: 1200×630) ────────────────────
 FB_WIDTH    = 1200
@@ -153,6 +160,147 @@ def _truncate(font: ImageFont.FreeTypeFont, text: str, max_w: int) -> str:
     while len(text) > 0 and _tw(font, text + ellipsis) > max_w:
         text = text[:-1]
     return text + ellipsis
+
+
+# ─── Lightning bolt renderer (matches the site's lightning theme) ───────────
+# Ported from static/js/core/lightning.js so social-share images carry the
+# same stormy-sky visual identity as the web UI.
+
+def _lb_trunk(rng: random.Random, start_x: float, start_y: float,
+              end_y: float, segments: int, drift: float) -> List[Tuple[float, float]]:
+    """Jagged descending trunk with uneven step length — real bolts aren't even zigzags."""
+    pts: List[Tuple[float, float]] = [(start_x, start_y)]
+    x, y = start_x, start_y
+    avg_step = (end_y - start_y) / max(1, segments)
+    for _ in range(1, segments):
+        step = avg_step * rng.uniform(0.55, 1.45)
+        y = min(end_y, y + step)
+        x += rng.uniform(-drift, drift)
+        pts.append((x, y))
+    pts.append((x + rng.uniform(-drift, drift), end_y))
+    return pts
+
+
+def _lb_branches(rng: random.Random, parent: List[Tuple[float, float]],
+                 spawn_chance: float, depth: int, base_width: float,
+                 side_hint: int) -> List[Dict[str, Any]]:
+    """Branches fork from interior trunk vertices and may recurse."""
+    out: List[Dict[str, Any]] = []
+    if depth <= 0:
+        return out
+    for i in range(1, len(parent) - 1):
+        if rng.random() >= spawn_chance:
+            continue
+        ox, oy = parent[i]
+        direction = side_hint * (1 if rng.random() < 0.75 else -1)
+        length = rng.uniform(40, 140)
+        segs = rng.randint(3, 7)
+        step = length / segs
+        angle = rng.uniform(0.55, 1.25)
+        branch: List[Tuple[float, float]] = [(ox, oy)]
+        cx, cy = ox, oy
+        for _ in range(segs):
+            lateral = math.sin(angle + rng.uniform(-0.35, 0.35)) * step * direction
+            descent = math.cos(angle) * step * 0.65 + rng.uniform(-step * 0.15, step * 0.35)
+            cx += lateral
+            cy += descent
+            branch.append((cx, cy))
+        out.append({'points': branch, 'width': base_width})
+        if depth > 1 and rng.random() < spawn_chance * 0.6:
+            out.extend(_lb_branches(rng, branch, spawn_chance * 0.5,
+                                    depth - 1, base_width * 0.55, direction))
+    return out
+
+
+def _lb_render_polyline(draw: ImageDraw.ImageDraw,
+                        points: List[Tuple[float, float]],
+                        base_width: float, taper: float,
+                        color: Tuple[int, int, int, int]) -> None:
+    """Draw a tapered polyline — width shrinks toward the tip for a bolt-like feel."""
+    total = len(points) - 1
+    if total <= 0:
+        return
+    for i in range(total):
+        t = i / total
+        w = max(1, int(round(base_width * ((1 - t) ** taper))))
+        p1 = (int(points[i][0]),     int(points[i][1]))
+        p2 = (int(points[i + 1][0]), int(points[i + 1][1]))
+        draw.line([p1, p2], fill=color, width=w)
+
+
+def _draw_lightning_bolts(target: Image.Image, region: Tuple[int, int, int, int],
+                          *, count: int = 2, seed: int = 0,
+                          intensity: float = 1.0) -> None:
+    """Composite glowing lightning bolts onto *target* within *region* (x, y, w, h).
+
+    Bolts are rendered once as geometry, then drawn three times with
+    shrinking widths and increasing opacity: a wide blurred halo, a
+    medium-width glow, and a crisp white core.  This stack mimics the
+    CSS drop-shadow layers used by the web UI's lightning.js so the
+    share image carries the same visual identity.
+    """
+    x0, y0, rw, rh = region
+    if rw <= 0 or rh <= 0:
+        return
+
+    rng = random.Random(seed)
+
+    # ── Geometry pass: build trunks + branches once, reuse for each layer ──
+    bolts: List[Dict[str, Any]] = []
+    # Extend virtual height so the trunk develops a natural zigzag rhythm
+    # even when the physical region is short (e.g. the 90-px header).  We
+    # draw into the full virtual range, then clip by the region when
+    # compositing.
+    vh = max(rh, 260)
+    for _ in range(count):
+        start_x  = rng.uniform(rw * 0.08, rw * 0.92)
+        start_y  = rng.uniform(-vh * 0.20, -vh * 0.05)
+        end_y    = vh + rng.uniform(-vh * 0.10, vh * 0.05)
+        segments = rng.randint(12, 18)
+        # Drift is per-step, proportional to segment length — this keeps
+        # the bolt predominantly vertical instead of ping-ponging sideways.
+        step_h   = (end_y - start_y) / segments
+        drift    = step_h * rng.uniform(0.35, 0.75)
+        side     = 1 if start_x < rw / 2 else -1
+
+        trunk    = _lb_trunk(rng, start_x, start_y, end_y, segments, drift)
+        branches = _lb_branches(rng, trunk, 0.38, 2, 1.6, side)
+        bolts.append({'trunk': trunk, 'branches': branches})
+
+    # Render geometry to three layers at different widths/opacities.
+    def _stamp(width_trunk: float, width_branch: float,
+               taper_t: float, taper_b: float, alpha: int) -> Image.Image:
+        layer = Image.new('RGBA', (rw, vh), (0, 0, 0, 0))
+        ld = ImageDraw.Draw(layer)
+        color = (255, 255, 255, min(255, max(0, int(alpha * intensity))))
+        for bolt in bolts:
+            _lb_render_polyline(ld, bolt['trunk'], width_trunk, taper_t, color)
+            for b in bolt['branches']:
+                _lb_render_polyline(ld, b['points'],
+                                    max(1.0, b['width'] * width_branch),
+                                    taper_b, color)
+        return layer
+
+    halo = _stamp(width_trunk=14, width_branch=7, taper_t=1.0, taper_b=1.3, alpha=110)
+    glow = _stamp(width_trunk=7,  width_branch=4, taper_t=1.1, taper_b=1.4, alpha=170)
+    core = _stamp(width_trunk=3,  width_branch=1, taper_t=1.3, taper_b=1.6, alpha=245)
+
+    halo = halo.filter(ImageFilter.GaussianBlur(radius=10))
+    glow = glow.filter(ImageFilter.GaussianBlur(radius=3))
+
+    # Composite onto target, clipping to the physical region height.
+    def _paste(layer: Image.Image) -> None:
+        cropped = layer.crop((0, 0, rw, rh))
+        if target.mode != 'RGBA':
+            base = target.convert('RGBA')
+            base.alpha_composite(cropped, dest=(x0, y0))
+            target.paste(base.convert('RGB'))
+        else:
+            target.alpha_composite(cropped, dest=(x0, y0))
+
+    _paste(halo)
+    _paste(glow)
+    _paste(core)
 
 
 # ─── OSM tile helpers ────────────────────────────────────────────────────────
@@ -485,6 +633,19 @@ def _card_row(draw: ImageDraw.ImageDraw, ix: int, iy: int, iw: int, h: int) -> N
     draw.rectangle((ix, iy, ix + iw, iy + h - 1), fill=_CARD)
 
 
+def _draw_header_gradient(img: Image.Image, alr_clr: Tuple[int, int, int]) -> None:
+    """Paint a top→bottom gradient across the header for a stormy-cloud look."""
+    top = _darken(alr_clr, 0.55)
+    bot = alr_clr
+    d = ImageDraw.Draw(img)
+    for y in range(HEADER_H):
+        t = y / max(1, HEADER_H - 1)
+        r = int(top[0] * (1 - t) + bot[0] * t)
+        g = int(top[1] * (1 - t) + bot[1] * t)
+        b = int(top[2] * (1 - t) + bot[2] * t)
+        d.line([(0, y), (FB_WIDTH, y)], fill=(r, g, b))
+
+
 # ─── Main public function ─────────────────────────────────────────────────────
 def generate_alert_image(
     alert: Any,
@@ -510,13 +671,31 @@ def generate_alert_image(
     event_name  = (getattr(alert, 'event', '') or 'Alert').upper()
     county_name = (location_settings or {}).get('county_name', 'County') or 'County'
 
+    # Stable per-alert seed so each alert's bolt pattern is reproducible.
+    alert_seed = hash((getattr(alert, 'id', 0) or 0, event_name)) & 0xFFFFFFFF
+
     # ── Base canvas ──────────────────────────────────────────────────────────
     img  = Image.new('RGB', (FB_WIDTH, FB_HEIGHT), _BG)
     draw = ImageDraw.Draw(img)
 
-    # ── Header bar ───────────────────────────────────────────────────────────
-    draw.rectangle((0, 0, FB_WIDTH, HEADER_H), fill=alr_clr)
-    draw.rectangle((0, HEADER_H - 36, FB_WIDTH, HEADER_H), fill=_darken(alr_clr, 0.30))
+    # ── Header bar (stormy sky with lightning) ────────────────────────────────
+    # Vertical gradient from darkened-severity → severity so the header reads
+    # as an illuminated storm cloud rather than a flat colour block.
+    _draw_header_gradient(img, alr_clr)
+    # Glowing lightning bolts behind the title — matches the site's lightning
+    # theme so the share card feels like a still frame from the UI.
+    _draw_lightning_bolts(img, (0, 0, FB_WIDTH, HEADER_H),
+                          count=3, seed=alert_seed, intensity=1.0)
+    # Soft scrim under the text for legibility after the flash.
+    scrim = Image.new('RGBA', (FB_WIDTH, HEADER_H), (0, 0, 0, 0))
+    sd = ImageDraw.Draw(scrim)
+    sd.rectangle((0, 0, 560, HEADER_H), fill=(0, 0, 0, 70))
+    base = img.convert('RGBA')
+    base.alpha_composite(scrim)
+    img.paste(base.convert('RGB'))
+    draw = ImageDraw.Draw(img)
+
+    draw.rectangle((0, HEADER_H - 2, FB_WIDTH, HEADER_H), fill=_darken(alr_clr, 0.45))
 
     # Event name (left)
     draw.text((16, 10), event_name, font=fonts['title'], fill=WHITE)
@@ -608,15 +787,19 @@ def generate_alert_image(
     iy  = HEADER_H + 8
     bot = FB_HEIGHT - FOOTER_H - 6
 
+    # Priority order for a share card: storm threats (when dangerous), the
+    # headline, WHO is affected, WHAT is happening, WHAT to do.  Coverage /
+    # storm motion come last so they only consume space the copy doesn't
+    # need.  VTAC codes and the issuing-office block are intentionally
+    # omitted — they're operator data, not share-worthy info, and were the
+    # main reason long descriptions were being clipped.
     iy = _draw_threats(draw, fonts, alr_clr, ix, iy, iw, bot, ipaws_data)
-    iy = _draw_coverage(draw, fonts, alr_clr, ix, iy, iw, bot, coverage_data, county_name)
-    iy = _draw_compass_section(draw, fonts, alr_clr, ix, iy, iw, bot, ipaws_data)
-    iy = _draw_areas(draw, fonts, alr_clr, ix, iy, iw, bot, alert)
     iy = _draw_nws_headline(draw, fonts, alr_clr, ix, iy, iw, bot, alert, ipaws_data)
+    iy = _draw_areas(draw, fonts, alr_clr, ix, iy, iw, bot, alert)
     iy = _draw_description(draw, fonts, alr_clr, ix, iy, iw, bot, alert)
     iy = _draw_instruction(draw, fonts, alr_clr, ix, iy, iw, bot, alert)
-    iy = _draw_vtac(draw, fonts, alr_clr, ix, iy, iw, bot, ipaws_data)
-    iy = _draw_sender(draw, fonts, alr_clr, ix, iy, iw, bot, ipaws_data)
+    iy = _draw_coverage(draw, fonts, alr_clr, ix, iy, iw, bot, coverage_data, county_name)
+    iy = _draw_compass_section(draw, fonts, alr_clr, ix, iy, iw, bot, ipaws_data)
 
     # ── Footer ────────────────────────────────────────────────────────────────
     fy = FB_HEIGHT - FOOTER_H
@@ -719,14 +902,16 @@ def _draw_threats(draw: ImageDraw.ImageDraw, fonts: Dict, alr_clr: Tuple,
     if not active:
         return iy
 
-    iy = _section_header(draw, fonts, alr_clr, ix, iy, iw, 'STORM THREATS')
-
     n       = len(active)
     gap     = 5
     card_w  = (iw - gap * (n - 1)) // n
     card_h  = 108
-    if iy + card_h > bot:
+    # Reserve space for the section header (22px) + card height before
+    # committing to drawing anything, so we never leave an orphan header.
+    if iy + 22 + card_h > bot:
         return iy
+
+    iy = _section_header(draw, fonts, alr_clr, ix, iy, iw, 'STORM THREATS')
 
     for i, (key, t) in enumerate(active):
         cx   = ix + i * (card_w + gap)
@@ -792,6 +977,11 @@ def _draw_coverage(draw: ImageDraw.ImageDraw, fonts: Dict, alr_clr: Tuple,
     if not coverage_data:
         return iy
 
+    # Reserve section-header (22) + at least one row of content before
+    # drawing anything — otherwise we'd leave an orphan "COVERAGE" title.
+    if iy + 22 + 22 > bot:
+        return iy
+
     iy = _section_header(draw, fonts, alr_clr, ix, iy, iw, 'COVERAGE')
 
     county = coverage_data.get('county', {})
@@ -834,51 +1024,6 @@ def _draw_coverage(draw: ImageDraw.ImageDraw, fonts: Dict, alr_clr: Tuple,
         draw.text((ix + 7, iy + (22 - _th(fonts['tiny'], svc_text)) // 2),
                   svc_text, font=fonts['tiny'], fill=_TEXT_SEC)
         iy += 24
-
-    return iy + 6
-
-
-def _draw_vtac(draw: ImageDraw.ImageDraw, fonts: Dict, alr_clr: Tuple,
-               ix: int, iy: int, iw: int, bot: int,
-               ipaws_data: Optional[Dict]) -> int:
-    vtec_list = (ipaws_data or {}).get('vtec_parsed', [])
-
-    if not vtec_list:
-        return iy
-
-    iy = _section_header(draw, fonts, alr_clr, ix, iy, iw, 'VTAC')
-
-    for vtec in vtec_list[:3]:
-        raw = vtec.get('raw', '') if isinstance(vtec, dict) else str(vtec)
-        if not raw:
-            continue
-        # Prefer decoded labels when available
-        if isinstance(vtec, dict) and vtec.get('phenomenon_label') and vtec.get('action_label'):
-            phen   = vtec.get('phenomenon_label', '')
-            act    = vtec.get('action_label', '')
-            office = vtec.get('office', '')
-            etn    = vtec.get('event_number', '')
-            decoded = f'{act} — {phen}  ({office} #{etn})' if office else f'{act} — {phen}'
-            display = decoded
-        else:
-            display = raw
-
-        row_h = 22
-        if iy + row_h > bot:
-            break
-        _card_row(draw, ix, iy, iw, row_h)
-        draw.text((ix + 7, iy + (row_h - _th(fonts['small'], display)) // 2),
-                  _truncate(fonts['small'], display, iw - 14),
-                  font=fonts['small'], fill=_TEXT)
-        iy += row_h + 2
-
-        # Raw string on a sub-row
-        if raw and raw != display and iy + 18 <= bot:
-            _card_row(draw, ix, iy, iw, 18)
-            draw.text((ix + 12, iy + (18 - _th(fonts['mono'], raw)) // 2),
-                      _truncate(fonts['mono'], raw, iw - 20),
-                      font=fonts['mono'], fill=_TEXT_MUT)
-            iy += 18 + 2
 
     return iy + 6
 
@@ -1137,14 +1282,20 @@ def _draw_description(draw: ImageDraw.ImageDraw, fonts: Dict, alr_clr: Tuple,
     if not desc:
         return iy
 
+    font = fonts['small']
+    row_h = 18
+    # Reserve the 22px section header + at least one row before committing.
+    if iy + 22 + row_h > bot:
+        return iy
+
     iy = _section_header(draw, fonts, alr_clr, ix, iy, iw, 'DESCRIPTION')
 
-    font = fonts['small']
     max_w = iw - 14
-    row_h = 18
-    # Limit lines to what fits in remaining space
+    # Fill all remaining vertical space rather than capping at an arbitrary
+    # line count — long descriptions previously ended mid-sentence because
+    # the cap was 6 lines regardless of how much room was left.
     avail_lines = max(1, (bot - iy) // (row_h + 1))
-    lines = _wrap_text(font, desc, max_w, max_lines=min(avail_lines, 6))
+    lines = _wrap_text(font, desc, max_w, max_lines=avail_lines)
 
     for ltext in lines:
         if iy + row_h > bot:
@@ -1172,13 +1323,17 @@ def _draw_instruction(draw: ImageDraw.ImageDraw, fonts: Dict, alr_clr: Tuple,
     if not instr:
         return iy
 
+    font = fonts['small']
+    row_h = 18
+    if iy + 22 + row_h > bot:
+        return iy
+
     iy = _section_header(draw, fonts, alr_clr, ix, iy, iw, 'INSTRUCTIONS')
 
-    font = fonts['small']
     max_w = iw - 18  # leave room for accent bar
-    row_h = 18
+    # Fill remaining vertical space instead of capping at 4 lines.
     avail_lines = max(1, (bot - iy) // (row_h + 1))
-    lines = _wrap_text(font, instr, max_w, max_lines=min(avail_lines, 4))
+    lines = _wrap_text(font, instr, max_w, max_lines=avail_lines)
 
     _INSTR_ACCENT = (255, 193, 7)  # warning-yellow accent bar
 
@@ -1190,46 +1345,6 @@ def _draw_instruction(draw: ImageDraw.ImageDraw, fonts: Dict, alr_clr: Tuple,
         draw.rectangle((ix, iy, ix + 3, iy + row_h), fill=_INSTR_ACCENT)
         draw.text((ix + 10, iy + (row_h - _th(font, ltext)) // 2),
                   ltext, font=font, fill=_TEXT)
-        iy += row_h + 1
-
-    return iy + 4
-
-
-def _draw_sender(draw: ImageDraw.ImageDraw, fonts: Dict, alr_clr: Tuple,
-                 ix: int, iy: int, iw: int, bot: int,
-                 ipaws_data: Optional[Dict]) -> int:
-    """Render the issuing office / sender information."""
-    if not ipaws_data:
-        return iy
-
-    sender_name = ipaws_data.get('sender_name', '')
-    response_type = ipaws_data.get('response_type', '')
-    category = ipaws_data.get('category', '')
-
-    # Build info lines from available data
-    info_lines: List[str] = []
-    if sender_name:
-        info_lines.append(sender_name)
-    if response_type:
-        info_lines.append(f'Response: {response_type}')
-    if category:
-        info_lines.append(f'Category: {category}')
-
-    if not info_lines or iy + 30 > bot:
-        return iy
-
-    iy = _section_header(draw, fonts, alr_clr, ix, iy, iw, 'ISSUING OFFICE')
-
-    font = fonts['small']
-    row_h = 20
-
-    for i, line in enumerate(info_lines):
-        if iy + row_h > bot:
-            break
-        _card_row(draw, ix, iy, iw, row_h)
-        f = fonts['bold'] if i == 0 else font
-        draw.text((ix + 7, iy + (row_h - _th(f, line)) // 2),
-                  _truncate(f, line, iw - 14), font=f, fill=_TEXT if i == 0 else _TEXT_SEC)
         iy += row_h + 1
 
     return iy + 4
