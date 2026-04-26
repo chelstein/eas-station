@@ -1434,6 +1434,13 @@ if ! sudo -u "$SERVICE_USER" "$VENV_DIR/bin/pip" install -r "$INSTALL_DIR/requir
     exit 1
 fi
 echo ""
+echo_progress "Installing hardware/audio/SDR dependencies (numba, scipy, gpiozero, luma.oled, pyserial, ...)"
+echo_info "These are split out so PaaS deploys can skip them; the Pi install always needs them."
+if ! sudo -u "$SERVICE_USER" "$VENV_DIR/bin/pip" install -r "$INSTALL_DIR/requirements-hardware.txt"; then
+    echo_error "Failed to install hardware Python dependencies"
+    exit 1
+fi
+echo ""
 echo_success "✓ Python dependencies installed successfully"
 
 # Create separate venv for SDR service with system site-packages
