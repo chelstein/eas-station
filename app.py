@@ -500,9 +500,20 @@ def _remove_eas_files(message: EASMessage) -> None:
 
 
 # Database configuration
+# If DATABASE_URL is unset, boot into setup mode instead of raising.  Crashing
+# at import time leaves PaaS deployments (App Platform, Heroku, etc.) in a
+# restart loop that hides the underlying configuration error; routing to /setup
+# gives the operator a UI to fix it.  A placeholder URI keeps SQLAlchemy happy
+# during init — actual connections fail closed and surface as setup-mode errors.
 DATABASE_URL = os.getenv('DATABASE_URL')
 if not DATABASE_URL:
-    raise ValueError("DATABASE_URL environment variable is required")
+    logger.error(
+        "DATABASE_URL environment variable is not set; entering setup mode. "
+        "Configure DATABASE_URL (e.g. attach a managed Postgres) and redeploy."
+    )
+    if 'database' not in _setup_mode_reasons:
+        _setup_mode_reasons.append('database')
+    DATABASE_URL = 'postgresql+psycopg2://unset:unset@127.0.0.1:5432/unset'
 os.environ.setdefault('DATABASE_URL', DATABASE_URL)
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
