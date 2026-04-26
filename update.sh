@@ -705,6 +705,11 @@ if [ -f "$INSTALL_DIR/venv/bin/pip" ]; then
     echo ""
     # Show full output so user can see progress (no grep filter)
     sudo -u "$SERVICE_USER" "$INSTALL_DIR/venv/bin/pip" install --upgrade -r "$INSTALL_DIR/requirements.txt"
+    if [ -f "$INSTALL_DIR/requirements-hardware.txt" ]; then
+        echo ""
+        echo_progress "Installing/upgrading hardware dependencies (numba, scipy, gpiozero, ...)"
+        sudo -u "$SERVICE_USER" "$INSTALL_DIR/venv/bin/pip" install --upgrade -r "$INSTALL_DIR/requirements-hardware.txt"
+    fi
     echo ""
     echo_success "Main venv dependencies updated"
 else

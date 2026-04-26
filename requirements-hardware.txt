@@ -1,0 +1,46 @@
+# EAS Station Hardware/Audio/SDR Requirements
+# Copyright (c) 2025-2026 Timothy Kramer (KR8MER)
+# Licensed under AGPL v3 or Commercial License
+#
+# These packages support hardware integration (GPIO, OLED, LED signs, GPS HAT,
+# Zigbee), real-time audio decoding, and SDR signal processing on the
+# Raspberry Pi / x86 deployment.  They are NOT needed for the web service
+# itself — every consumer in app_core/ and webapp/ already wraps their
+# imports in `try/except ImportError` and falls back gracefully.
+#
+# Splitting them out keeps the PaaS-only image (DigitalOcean App Platform,
+# Heroku, container deploys) small enough to fit a 512 MB instance, since
+# numba/llvmlite/scipy alone account for >200 MB of unpacked footprint.
+#
+# install.sh and update.sh install this file alongside requirements.txt on
+# Pi/Linux deployments — there is no behavior change there.
+
+# Speech synthesis (offline TTS provider)
+pyttsx3==2.99
+
+# Audio processing for EAS decoding and Icecast ingestion
+scipy==1.16.3            # Optional advanced signal processing (lazy-imported)
+pydub==0.25.1            # Audio stream decoding (MP3/AAC/OGG); needs ffmpeg
+audioop-lts==0.2.2       # audioop replacement for Python 3.13+
+numba>=0.61.0,<0.64.0    # JIT for real-time FM demodulation / RBDS
+
+# VFD Display & GPS HAT (serial)
+pyserial==3.5
+pynmea2==1.19.0          # NMEA-0183 sentence parser
+
+# OLED display (Argon Industria SSD1306 over I2C)
+luma.oled==3.14.0
+
+# Raspberry Pi GPIO + addressable LEDs
+gpiozero==2.0.1
+rpi-ws281x>=0.0.5        # NeoPixel/WS2812B; requires DMA/root on Pi
+
+# Zigbee coordinator (CC2652P / CC1352P)
+zigpy>=0.60.0
+zigpy-znp>=0.11.0
+
+# SNMP trap notifications (compliance health alerts)
+pysnmp>=6.2.0
+
+# Shapefile import for boundary administration UI
+pyshp==3.0.3
